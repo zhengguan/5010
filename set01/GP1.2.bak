@@ -1,0 +1,15 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname GP1.2) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+(define-struct spider (legs space))
+
+;; A spider is a
+;;  (make-spider NonNegNumber NonNegNumber)
+;; Interpretation:
+;;  legs is the number of legs
+
+;; spider-fn : Spider -> ??
+(define (spider-fn sp)
+  (...
+   (spider-legs sp)
+   (spider-space sp)))
