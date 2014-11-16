@@ -1,0 +1,28 @@
+Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
+3/23  MW,IS     13:02  13:47  10+5          1        30            Analysis of Q1
+3/23  MW,IS     13:47  14:19  10            1        22            Data defs for Q1
+3/23  MW,IS     14:33  14:48                2        15            Started thinking about Q2
+3/23  MW,IS     14:48  15:11  5             1        23            Hmm, I think we misunderstood what Q1 wanted
+============committing to git: 3/23 15:15 ===================
+3/23  MW,IS,SG  22:03 22:10                 2         7            Still puzzling over Q2; discussed it with sanjay.
+3/23  MW,IS     22:10 22:22                 1        12            regression testing (oops, new version
+                                                                   didn't quite work on previous test cases)
+3/23  MW,IS     22:20 23:00 10+5+5          1        20            fixed tests. **Q1 finished**
+============committing to git: 3/23 23:00 ===================
+3/24  MW,SG     09:30 09:45                 1        15            Explained our interp. of Q1 to Sanjay.
+    
+      //etc.//
+    
+Total Time On Task Q1 (minutes)                  129 
+Total Time On Task Q2 (minutes)                  720 
+TOTQ1 (hours and tenths)                         2.1 
+TOTQ2 (hours and tenths)                         12.0
+
+============committing to git: 11/9 21:37 ===================
+
+Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
+11/15 zgs       13:43 14:16               1        33		 Data Design and initial-robot function about Q1
+11/15 zgs       15:00 15:08               1        8             direction-truns-left and direction-turns-right function         								 design
+11/15 zgs       15:18 15:38               1        20            robot-left and robot-right function design
+11/15 zgs       15:45 16:17               1        31            robot-forward and robot-inside-room? design
+11/15 zgs       17:02 17:17               1        15   	 robot-forward help function design
