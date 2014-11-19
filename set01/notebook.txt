@@ -27,4 +27,18 @@ Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
 11/15 zgs       15:45 16:17               1        31            robot-forward and robot-inside-room? design
 11/15 zgs       17:02 17:17               1        15   	 robot-forward help function design
 11/16 zgs       10:38 11:25               1        46            robot-forward function design
+
+Total Time On Task Q1 (minutes)                  153 
+TOTQ1 (hours and tenths)                         2.55 
+
 ============committing to git: 11/16 13:56 ===================
+
+Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
+11/18 zgs       17:47 18:23               2        36		 Answering Q2
+11/18 zgs       19:05 19:21               2        15		 Finish Q2
+11/19 zgs       19:32 20:10               3        37            Answering Q2
+
+Total Time On Task Q2 (minutes)                  51.0 
+TOTQ2 (hours and tenths)                         0.85 
+
+============committing to git: 11/19 21:46 ===================
