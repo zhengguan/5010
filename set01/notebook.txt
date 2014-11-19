@@ -26,3 +26,5 @@ Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
 11/15 zgs       15:18 15:38               1        20            robot-left and robot-right function design
 11/15 zgs       15:45 16:17               1        31            robot-forward and robot-inside-room? design
 11/15 zgs       17:02 17:17               1        15   	 robot-forward help function design
+11/16 zgs       10:38 11:25               1        46            robot-forward function design
+============committing to git: 11/16 13:56 ===================

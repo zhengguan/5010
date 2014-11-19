@@ -1,0 +1,436 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname |1|) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+(require rackunit)
+(require "extras.rkt")
+
+(provide
+   initial-robot
+   robot-left 
+   robot-right
+   robot-forward
+   robot-north? 
+   robot-south? 
+   robot-east? 
+   robot-west?)
+
+(define north-boundary (+ 0 15))
+(define south-boundary (- 400 15))
+(define west-boundary (+ 0 15))
+(define east-boundary (- 200 15))
+; Interpretation:
+; If the robot's coordinate(x,y) is within the boundary,
+; namely north-boundary <= y <= south-boundary and
+; west-boundary <= x <= east-boundary then the robot is
+; entirely within the room
+
+
+
+
+;  Direction is one of
+;  -- "south"
+;  -- "west"
+;  -- "north"
+;  -- "east"
+;(define (direction-fn d)
+;  (cond
+;    [(string=? d "south") ...]
+;    [(string=? d "west") ...]
+;    [(string=? d "north") ...]
+;    [(string=? d "east") ...]))
+
+
+(define-struct robot (x y direction))
+; Robot is a (make-robot Real Real Direction)
+; Interpretation:
+;  x, y is the robot's coordinates
+
+; robot-fn: Robot -> ??
+;(define (robot-fn r)
+;  (...
+;   (robot-x r)
+;   (robot-y r)
+;   (robot-direction r)))
+
+
+;; initial-robot : Real Real -> Robot
+;; GIVEN: a set of (x, y) coordinates
+;; RETURNS: a robot with its center at those coordinates, facing 
+;; north(up).
+;; EXAMPLES:
+;; (initial-robot 10 10) = (make-robot 10 10 "north")
+;; (initial-robot 100 100) = (make-robot 100 100 "north")
+;; STRATEGY: Functiona Composition
+(define (initial-robot x y)
+  (make-robot x y "north"))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (initial-robot 10 10)
+   (make-robot 10 10 "north"))
+  
+  (check-equal? 
+   (initial-robot 100 100)
+   (make-robot 100 100 "north")))
+
+
+;; direction-turns-left: Direction -> Direction
+;; RETURNS: the direction after the given direction turns left
+;; EXAMPLES:
+;; (direction-turns-left "south") = "east"
+;; (direction-turns-left "west") = "south"
+;; (direction-turns-left "north") = "west"
+;; (direction-turns-left "east") = "north"
+;; STRATEGY: Structural Decomposition
+(define (direction-turns-left d)
+  (cond
+    [(string=? d "south") "east"]
+    [(string=? d "west") "south"]
+    [(string=? d "north") "west"]
+    [(string=? d "east") "north"]))
+
+;;TESTS:
+(begin-for-test
+  (check-equal?
+   (direction-turns-left "south")
+   "east")
+  (check-equal?
+   (direction-turns-left "west")
+   "south")
+  (check-equal?
+   (direction-turns-left "north")
+   "west")
+  (check-equal?
+   (direction-turns-left "east")
+   "north"))
+
+;; direction-truns-right : Direction -> Direction
+;; RETURNS: the direction after the given direction turns right
+;; EXAMPLES:  
+;; (direction-turns-right "south") = "west"
+;; (direction-turns-right "west") = "north"
+;; (direction-turns-right "north") = "east"
+;; (direction-turns-right "east") = "south"
+;; STRATEGY: Structural Decomposition
+(define (direction-turns-right d)
+  (cond
+    [(string=? d "south") "west"]
+    [(string=? d "west") "north"]
+    [(string=? d "north") "east"]
+    [(string=? d "east") "south"]))
+
+;TESTS:
+(begin-for-test
+  (check-equal?
+   (direction-turns-right "south")
+   "west")
+  (check-equal?
+   (direction-turns-right "west")
+   "north")
+  (check-equal?
+   (direction-turns-right "north")
+   "east")
+  (check-equal?
+   (direction-turns-right "east")
+   "south"))
+
+;; robot-left : Robot -> Robot
+;; robot-right : Robot -> Robot
+;; GIVEN: a robot
+;; RETURNS: a robot like the original, but turned 90 degrees either left 
+;; or right
+;; EXAMPLES:
+;; (robot-left (initial-robot 100 100))
+;; = (make-robot 100 100 "west")
+;; (robot-right (initial-robot 100 100))
+;; = (make-robot 100 100 "east")
+;; STRATEGY: Structural Decomposition
+(define (robot-left r)
+  (make-robot 
+   (robot-x r)
+   (robot-y r) 
+   (direction-turns-left
+    (robot-direction r))))
+
+(define (robot-right r)
+  (make-robot
+   (robot-x r)
+   (robot-y r)
+   (direction-turns-right
+    (robot-direction r))))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (robot-left (initial-robot 100 100))
+   (make-robot 100 100 "west"))
+  (check-equal?
+   (robot-right (initial-robot 100 100))
+   (make-robot 100 100 "east")))
+
+
+;; robot-forward : Robot PosInt -> Robot
+;; GIVEN: a robot and a distance
+;; RETURNS: a robot like the given one, but moved forward by the
+;; specified distance. If moving forward the specified distance 
+;; would cause the robot to move from being entirely inside the 
+;; room to being even partially outside the room, then the robot
+;; should stop at the wall.
+;; EXAMPLES:
+;; (robot-forward (make-robot 100 100 "north") 100)
+;; = (make-robot 100 15 "north")
+;; (robot-forward (make-robot 100 100 "south") 100)
+;; = (make-robot 100 200 "south")
+;; (robot-forward (make-robot 100 100 "west") 100)
+;; = (make-robot 15 100 "west")
+;; (robot-forward (make-robot 100 100 "east") 100)
+;; = (make-robot 185 100 "east")
+;; STRATEGY: Function Composition
+(define (robot-forward r distant)
+  (cond
+    [(robot-north? r) (robot-forward-north r distant)]
+    [(robot-south? r) (robot-forward-south r distant)]
+    [(robot-east? r) (robot-forward-east r distant)]
+    [(robot-west? r) (robot-forward-west r distant)]))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (robot-forward (make-robot 100 100 "north") 100)
+   (make-robot 100 15 "north"))
+  (check-equal?
+   (robot-forward (make-robot 100 100 "south") 100)
+   (make-robot 100 200 "south"))
+  (check-equal?
+   (robot-forward (make-robot 100 100 "west") 100)
+   (make-robot 15 100 "west"))
+  (check-equal?
+   (robot-forward (make-robot 100 100 "east") 100)
+   (make-robot 185 100 "east")))
+
+;; robot-within-north-boundary : Robot -> Boolean
+;; robot-within-south-boundary : Robot -> Boolean
+;; robot-within-west-boundary : Robot -> Boolean
+;; robot-within-east-boundary : Robot -> Boolean
+;; GIVEN: a robot
+;; RETURNS: true iff the robot within the corresponding boundary
+;; EXAMPLES:
+;; (robot-within-north-boundary (initial-robot 100 100)) = true
+;; (robot-within-north-boundary (initial-robot 0 0)) = false
+;; (robot-within-south-boundary (initial-robot 100 100)) = true
+;; (robot-within-south-boundary (initial-robot 200 400)) = false
+;; (robot-within-west-boundary (initial-robot 100 100)) = true
+;; (robot-within-west-boundary (initial-robot 0 0)) = false
+;; (robot-within-east-boundary (initial-robot 100 100)) = true
+;; (robot-within-east-boundary (initial-robot 200 400)) = false
+;; STRATEGY: Structural Decomposition on r : Robot
+(define (robot-within-north-boundary r)
+  (>= (robot-y r) north-boundary))
+
+(define (robot-within-south-boundary r)
+  (<= (robot-y r) south-boundary))
+
+(define (robot-within-west-boundary r)
+  (>= (robot-x r) west-boundary))
+
+(define (robot-within-east-boundary r)
+  (<= (robot-x r) east-boundary))
+
+
+(begin-for-test
+  (check-equal? (robot-within-north-boundary (initial-robot 100 100)) true)
+  (check-equal? (robot-within-north-boundary (initial-robot 0 0)) false)
+  (check-equal? (robot-within-south-boundary (initial-robot 100 100))  true)
+  (check-equal? (robot-within-south-boundary (initial-robot 200 400))  false)
+  (check-equal? (robot-within-west-boundary (initial-robot 100 100))  true)
+  (check-equal? (robot-within-west-boundary (initial-robot 0 0)) false)
+  (check-equal? (robot-within-east-boundary (initial-robot 100 100))  true)
+  (check-equal? (robot-within-east-boundary (initial-robot 200 400))  false))
+
+
+;; robot-forward-north : Robot PosInt -> Robot
+;; GIVEN: a robot and a distance
+;; WHERE: the robot faces north
+;; RETURNS: the same robot moved forward the specified distance by north
+;; If moving forward the specified number of distance would cause
+;; the robot to move from being entirely inside the room to being
+;; even partially outside the room,then the robot should stop at
+;; the wall.
+;; EXAMPLES: 
+;; (robot-forward-north (make-robot 0 0 "north") 100)
+;; = (make-robot 0 -100 "north")
+;; (robot-forward-north (make-robot 100 100 "north") 100) 
+;; = (make-robot 100 15 "north")
+;; STRATEGY: Structural Decomposition by r : Robot
+(define (robot-forward-north r distance)
+  (if (and (robot-within-west-boundary r)
+           (robot-within-east-boundary r)
+           (robot-within-north-boundary r))
+      (make-robot (robot-x r)
+                  (max north-boundary (- (robot-y r) distance))
+                  (robot-direction r))
+      (make-robot (robot-x r)
+                  (- (robot-y r) distance)
+                  (robot-direction r))))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? 
+   (robot-forward-north (make-robot 0 0 "north") 100)
+   (make-robot 0 -100 "north"))
+  
+  (check-equal?
+   (robot-forward-north (make-robot 100 100 "north") 100) 
+   (make-robot 100 15 "north")))
+
+;; robot-forward-south : Robot PosInt -> Robot
+;; GIVEN: a robot and distance
+;; WHERE: the robot faces south
+;; RETURNS: the same robot moved forward the specified distance by  south 
+;; If moving forward the specified number of distance would cause
+;; the robot to move from being entirely inside the room to being
+;; even partially outside the room,then the robot should stop at
+;; the wall.
+;; EXAMPLES:
+;; (robot-forward-south (make-robot 100 100 "south") 100)
+;; = (make-robot 100 200 "south")
+;; (robot-forward-south (make-robot 200 400 "south") 100)
+;; = (make-robot 200 500 "north")
+;; STRATEGY: Structural Decomposition on r : Robot
+(define (robot-forward-south r distance)
+  (if (and (robot-within-west-boundary r)
+           (robot-within-east-boundary r)
+           (robot-within-south-boundary r))
+      (make-robot (robot-x r)
+                  (min south-boundary (+ (robot-y r) distance))
+                  (robot-direction r))
+      (make-robot (robot-x r)
+                  (+ (robot-y r) distance)
+                  (robot-direction r))))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (robot-forward-south (make-robot 100 100 "south") 100)
+   (make-robot 100 200 "south"))
+  
+  (check-equal?
+   (robot-forward-south (make-robot 200 400 "south") 100)
+   (make-robot 200 500 "south")))
+
+
+;; robot-forward-west : Robot PosInt -> Robot
+;; GIVEN: a robot and distance
+;; WHERE: the robot faces west
+;; RETURNS: the same robot moved forward the specified distance by west
+;; If moving forward the specified number of distance would cause
+;; the robot to move from being entirely inside the room to being
+;; even partially outside the room,then the robot should stop at
+;; the wall.
+;; EXAMPLES:
+;; (robot-forward-west (make-robot 100 100 "west") 100)
+;; = (make-robot 15 100 "west")
+;; (robot-forward-west (make-robot 200 400 "west") 100)
+;; = (make-robot 100 400 "north")
+;; STRATEGY: Structural Decomposition on r : Robot
+(define (robot-forward-west r distance)
+  (if (and (robot-within-north-boundary r)
+           (robot-within-south-boundary r)
+           (robot-within-west-boundary r))
+      (make-robot (max west-boundary (- (robot-x r) distance))
+                  (robot-y r)
+                  (robot-direction r))
+      (make-robot (- (robot-x r) distance)
+                  (robot-y r)
+                  (robot-direction r))))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (robot-forward-west (make-robot 100 100 "west") 100)
+   (make-robot 15 100 "west"))
+  
+  (check-equal?
+   (robot-forward-west (make-robot 200 400 "west") 100)
+   (make-robot 100 400 "west")))
+
+
+;; robot-forward-east : Robot PosInt -> Robot
+;; GIVEN: a robot and distance
+;; WHERE: the robot faces east
+;; RETURNS: the same robot moved forward the specified distance by east
+;; If moving forward the specified number of distance would cause
+;; the robot to move from being entirely inside the room to being
+;; even partially outside the room,then the robot should stop at
+;; the wall.
+;; EXAMPLES:
+;; (robot-forward-east (make-robot 100 100 "east") 100)
+;; = (make-robot 185 100 "east")
+;; (robot-forward-east (make-robot 200 400 "east") 100)
+;; = (make-robot 300 400 "east")
+;; STRATEGY: Structural Decomposition on r : Robot
+(define (robot-forward-east r distance)
+  (if (and (robot-within-north-boundary r)
+           (robot-within-south-boundary r)
+           (robot-within-east-boundary r))
+      (make-robot (min east-boundary (+ (robot-x r) distance))
+                  (robot-y r)
+                  (robot-direction r))
+      (make-robot (+ (robot-x r) distance)
+                  (robot-y r)
+                  (robot-direction r))))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (robot-forward-east (make-robot 100 100 "east") 100)
+   (make-robot 185 100 "east"))
+  
+  (check-equal?
+   (robot-forward-east (make-robot 200 400 "east") 100)
+   (make-robot 300 400 "east")))
+
+
+
+
+
+;; robot-north? : Robot -> Boolean
+;; robot-south? : Robot -> Boolean
+;; robot-east? : Robot -> Boolean
+;; robot-west? : Robot -> Boolean
+;; GIVEN: a robot
+;; RETURNS: whether the robot is facing in the specified direction.
+;; EXAMPLES: 
+;; (robot-north? (make-robot 100 100 "north")) = true
+;; (robot-north? (make-robot 100 100 "south")) = false
+;; (robot-south? (make-robot 100 100 "south")) = true
+;; (robot-south? (make-robot 100 100 "north")) = false
+;; (robot-west? (make-robot 100 100 "west")) = true
+;; (robot-west? (make-robot 100 100 "east")) = false
+;; (robot-east? (make-robot 100 100 "east")) = true
+;; (robot-east? (make-robot 100 100 "west")) = false
+;; STRADTEGY: Structural Decomposition on r : Robot
+(define (robot-north? r)
+  (string=? (robot-direction r) "north"))
+
+(define (robot-south? r)
+  (string=? (robot-direction r) "south"))
+
+(define (robot-west? r)
+  (string=? (robot-direction r) "west"))
+
+(define (robot-east? r)
+  (string=? (robot-direction r) "east"))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (robot-north? (make-robot 100 100 "north")) true)
+  (check-equal? (robot-north? (make-robot 100 100 "south")) false)
+  (check-equal? (robot-south? (make-robot 100 100 "south")) true)
+  (check-equal? (robot-south? (make-robot 100 100 "north")) false)
+  (check-equal? (robot-west? (make-robot 100 100 "west")) true)
+  (check-equal? (robot-west? (make-robot 100 100 "east")) false)
+  (check-equal? (robot-east? (make-robot 100 100 "east")) true)
+  (check-equal? (robot-east? (make-robot 100 100 "west")) false))
+
