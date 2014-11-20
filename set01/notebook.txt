@@ -31,14 +31,24 @@ Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
 Total Time On Task Q1 (minutes)                  153 
 TOTQ1 (hours and tenths)                         2.55 
 
+
+
 ============committing to git: 11/16 13:56 ===================
 
 Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
 11/18 zgs       17:47 18:23               2        36		 Answering Q2
 11/18 zgs       19:05 19:21               2        15		 Finish Q2
-11/19 zgs       19:32 20:10               3        37            Answering Q2
+11/19 zgs       19:32 20:10               3        37            Answering Q3
 
-Total Time On Task Q2 (minutes)                  51.0 
+Total Time On Task Q2 (minutes)                  51
 TOTQ2 (hours and tenths)                         0.85 
 
 ============committing to git: 11/19 21:46 ===================
+
+Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
+11/20 zgs       18:56 19:24               3        32		 Finish Q3
+
+Total Time On Task Q2 (minutes)                  69 
+TOTQ23(hours and tenths)                         1.15 
+
+============committing to git: 11/20 19:31 ===================

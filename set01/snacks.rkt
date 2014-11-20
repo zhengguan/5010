@@ -5,14 +5,14 @@
 (require "extras.rkt")
 (require 2htdp/universe)
 
-#;(provide
+(provide
  initial-machine
  machine-next-state
- machine-choolates
+ machine-chocolates
  machine-carrots
  machine-bank)
 
-(define-struct machine (choolates carrots bank cash))
+(define-struct machine (chocolates carrots bank cash))
 ; A machine is a (make-machine PosInt PosInt PosInt PosInt)
 ; Interpretation:
 ; chocolates is the number of packages of chocolate bars in the machine
@@ -22,7 +22,7 @@
 ; anything, in cents
 ;(define (machine-fn m)
 ;  (...
-;   (machine-choolates m)
+;   (machine-chocolates m)
 ;   (machine-carrots m)
 ;   (machine-bank m)
 ;   (machine-cash m)))
@@ -58,16 +58,39 @@
 ;; RETURNS: the state of the machine that should follow the customer's
 ;; input
 ;; EXAMPLES:
-;; (machine-next-state 
+;; (machine-next-state (make-machine 10 10 0 200) 25)
+;; = (make-machine 10 10 0 225)
+;; (machine-next-state (make-machine 10 10 0 200) "chocolate")
+;; = (make-machine 9 10 175  25)
+;; (machine-next-state (make-machine 10 10 0 200) "carrots")
+;; = (make-machine 10 9 70 130)
+;; (machine-next-state (make-machine 10 10 0 200) "release")
+;; = (make-machine 10 10 0 0)
 ;; STRATEGY: Cases on c : CustomerInput
-#;(define (machine-next-state m ci)
+(define (machine-next-state m ci)
   (cond
     [(and (integer? ci) (> ci 0)) (input-cents m ci)]
-    [(string=? "chocolate") (input-chocolate m ci)]
-    [(string=? "carrots") (input-carrots m ci)]
-    [(string=? "release") (input-release m ci)]))
+    [(string=? ci "chocolate") (input-chocolate m ci)]
+    [(string=? ci "carrots") (input-carrots m ci)]
+    [(string=? ci "release") (input-release m ci)]))
 
 ;; TESTS:
+(begin-for-test
+  (check-equal? (machine-next-state (make-machine 10 10 0 200) 25)
+                (make-machine 10 10 0 225))
+  (check-equal? (machine-next-state (make-machine 10 10 0 200) "chocolate")
+                (make-machine 9 10 175 25))
+  (check-equal? (machine-next-state (make-machine 10 10 0 200) "carrots")
+                (make-machine 10 9 70 130))
+  (check-equal? (machine-next-state (make-machine 10 10 0 200) "release")
+                (make-machine 10 10 0 0))
+  
+;; bug
+  (check-equal? (input-chocolate (make-machine 10 10 0 200) "chocolate")
+                (make-machine 9 10 175 25))
+  )
+
+
 
 
 ;; input-cents: Machine CustomerInput -> Machine
@@ -83,7 +106,7 @@
 ;; STRATEGY: Structural Decomposition on ci : CustomerInput
 (define (input-cents m ci)
   (make-machine 
-   (machine-choolates m)
+   (machine-chocolates m)
    (machine-carrots m)
    (machine-bank m)
    (+ (machine-cash m) ci)))
@@ -93,3 +116,112 @@
   (check-equal? 
    (input-cents (initial-machine 10 10) 10)
    (make-machine 10 10 0 10)))
+
+;; input-chocolate : Machine CustomerInput -> Machine
+;; GIVEN: a machine state and a customer input
+;; WHERE: the customer input is "chocolate"
+;; RETURNS: the state of the machine that should follow the customer's
+;; input
+;; EXAMPLES:
+;; (input-chocolate (make-machine 10 10 0 0))
+;; = (make-machine 10 10 0 0)
+;; (input-chocolate (make-machine 10 10 0 175))
+;; = (make-machine 9 10 175 0)
+;; STRATEGY: Structural Decomposition on m : Machine
+(define (input-chocolate m ci)
+  (if (can-buy-chocolate? m)
+      (make-machine (- (machine-chocolates m) 1)
+                    (machine-carrots m)
+                    (+ (machine-bank m) 175)
+                    (- (machine-cash m) 175))
+      m))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (input-chocolate (make-machine 10 10 0 0) "chocolate")
+                (make-machine 10 10 0 0))
+  (check-equal? (input-chocolate (make-machine 10 10 0 175) "chocolate")
+                (make-machine 9 10 175 0)))
+
+
+
+;; can-buy-chocolate? : Machine -> Boolean
+;; GIVEN: a machine state
+;; RETURNS: true iff the machine has some chocolate bars and the 
+;; customer has offered enough money to buy one
+;; EXAMPLE:
+;; (can-buy-chocolate? (make-machine 10 10 0 175)) = true
+;; STRATEGY: Structural Decomposition on m : Machine
+(define (can-buy-chocolate? m)
+  (and (> (machine-chocolates m) 0)
+       (>= (machine-cash m) 175)))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (can-buy-chocolate? (make-machine 10 10 0 175)) true))
+
+
+;; input-carrots : Machine CustomerInput -> Machine
+;; GIVEN: a machine state and a customer input
+;; WHERE: the customer input is "carrots"
+;; RETURNS: the state of the machine that should follow the customer's
+;; input
+;; EXAMPLES:
+;; (input-carrots (make-machine 10 10 0 70) "carrots")
+;; = (make-machine 10 9 70 0)
+;; (input-carrots (make-machine 10 10 0 0) "carrots")
+;; = (make-machine 10 10 0 0)
+;; STRATEGY: Structural Decomposition on m : Machine
+(define (input-carrots m ci)
+  (if (can-buy-carrots? m)
+      (make-machine (machine-chocolates m)
+                    (- (machine-carrots m) 1)
+                    (+ (machine-bank m) 70)
+                    (- (machine-cash m) 70))
+      m))
+;; TESTS:
+(begin-for-test
+  (check-equal? (input-carrots (make-machine 10 10 0 70) "carrots")
+                (make-machine 10 9 70 0))
+  (check-equal? (input-carrots (make-machine 10 10 0 0) "carrots")
+                (make-machine 10 10 0 0)))
+
+
+
+;; can-buy-carrots? : Machine -> Boolean
+;; GIVEN: a machine state
+;; RETURNS: true iff the machine has some carrot sticks and the 
+;; customer has offered enough money to buy one
+;; EXAMPLES:
+;; (can-buy-carrots? (make-machine 10 10 0 70)) = true
+;; STRATEGY: Structural Decomposition on m : Machine
+(define (can-buy-carrots? m)
+  (and (> (machine-carrots m) 0)
+       (>= (machine-cash m) 70)))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (can-buy-carrots? (make-machine 10 10 0 70)) true))
+
+
+;; input-release : Machine CustomerInput -> Machine
+;; GIVEN: a machine state and a customer input
+;; WHERE: the customer input is "release"
+;; RETURNS: the state of the machine that should follow the customer's
+;; input
+;; EXAMPLES:
+;; (input-release (make-machine 10 10 0 70) "release")
+;; = (make-machine 10 10 0 0)
+
+(define (input-release m ci)
+  (make-machine 
+   (machine-chocolates m)
+   (machine-carrots m)
+   (machine-bank m)
+   0))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (input-release (make-machine 10 10 0 70) "release")
+                (make-machine 10 10 0 0)))
+
