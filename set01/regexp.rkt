@@ -25,6 +25,8 @@
 (define E "encounted a 'e', finished")
 (define ER "error, user passed illegal key")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; initial-state : Number -> State
 ;; GIVEN: a number
 ;; RETURNS: a representation of the initial state
@@ -36,6 +38,8 @@
 
 ;; TESTS:
 (begin-for-test (check-equal? (initial-state 1)  S))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; next-state : State KeyEvent -> State
 ;; GIVEN: a state of the machine and a key event.
@@ -65,6 +69,7 @@
   (check-equal? (next-state E "a") E)
   (check-equal? (next-state ER "a") ER))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; accepting-state? : State -> Boolean
 ;; GIVEN: a state of the machine
@@ -101,9 +106,12 @@
 (begin-for-test 
   (check-equal? (state=? S S) true))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; after-s : State KeyEvent -> State
+;; after-ab : State KeyEvent -> State
 ;; GIVEN: a state of the machine and a key event
-;; WHERE: the state is S or AB or CD
+;; WHERE: the state is S or AB 
 ;; RETURNS: the state that should follow the given key event
 ;; EXAMPLES:
 ;; (after-s S "a") = AB
@@ -116,33 +124,12 @@
 ;; (after-ab AB "e") = E
 ;; (after-ab AB "left") = S
 ;; (after-ab AB "g") = ER
-;; (after-cd CD "c") = CD
-;; (after-cd CD "e") = E
-;; (after-cd CD "left") = S
-;; (after-cd CD "g") = ER
-;; STRATEGY: Cases on KeyEvent
+;; STRATEGY: Function Composition
 (define (after-s s ke)
-  (cond
-    [(key-event-ab? ke) AB]
-    [(key-event-cd? ke) CD]
-    [(key-event-e? ke) E]
-    [(length>1? ke) s]
-    [else ER]))
+  (after-s-or-ab s ke))
 
 (define (after-ab s ke)
-  (cond
-    [(key-event-ab? ke) AB]
-    [(key-event-cd? ke) CD]
-    [(key-event-e? ke) E]
-    [(length>1? ke) s]
-    [else ER]))
-
-(define (after-cd s ke)
-  (cond
-    [(key-event-cd? ke) CD]
-    [(key-event-e? ke) E]
-    [(length>1? ke) s]
-    [else ER]))
+  (after-s-or-ab s ke))
 
 ;; TESTS:
 (begin-for-test
@@ -155,11 +142,51 @@
   (check-equal? (after-ab AB "c") CD)
   (check-equal? (after-ab AB "e") E)
   (check-equal? (after-ab AB "left") AB)
-  (check-equal? (after-ab AB "g") ER)
+  (check-equal? (after-ab AB "g") ER))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; after-cd : State KeyEvent -> State
+;; GIVEN: a state of the machine and a key event
+;; WHERE: the state is CD
+;; RETURNS: the state that should follow the given key event
+;; EXAMPLES:
+;; (after-cd CD "c") = CD
+;; (after-cd CD "e") = E
+;; (after-cd CD "left") = S
+;; (after-cd CD "g") = ER
+;; STRATEGY: Cases on KeyEvent
+(define (after-cd s ke)
+  (cond
+    [(key-event-cd? ke) CD]
+    [(key-event-e? ke) E]
+    [(length>1? ke) s]
+    [else ER]))
+
+;; TESTS:
+(begin-for-test
   (check-equal? (after-cd CD "c") CD)
   (check-equal? (after-cd CD "e") E)
   (check-equal? (after-cd CD "left") CD)
   (check-equal? (after-cd CD "g") ER))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; after-s-or-ab : State KeyEvent -> State
+;; GIVEN: a state of the machine and a key event
+;; WHERE: the state is S|AB 
+;; RETURNS: the state that should follow the given key event
+;; EXAMPLES: the same as after-a and after-ab
+;; STRATEGY: Structural Decomposition on ke : KeyEvent
+(define (after-s-or-ab s ke)
+  (cond
+    [(key-event-ab? ke) AB]
+    [(key-event-cd? ke) CD]
+    [(key-event-e? ke) E]
+    [(length>1? ke) s]
+    [else ER]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; key-event-ab? : KeyEvent -> Boolean
 ;; key-event-cd? : KeyEvent -> Boolean
@@ -192,6 +219,8 @@
   (check-equal? (key-event-cd? "c") true)
   (check-equal? (key-event-cd? "d") true)
   (check-equal? (key-event-e? "e") true))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; length>1? : KeyEvent -> Boolean
 ;; RETURN: true iff length of the given key event is greater than 1
