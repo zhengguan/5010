@@ -7,7 +7,16 @@ Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
 
 ============committing to git: 12/4 21:30 ===================
 
+12/6 zgs        10:23 11:13               2        49           Information analysis of Q2
+12/6 zgs        14:22 14:53               2        30           Data Design of Q2
+12/6 zgs        15:43 16:11               2        27           Data Design and Function Design of Q2
+12/6 zgs        20:15 21:33               2        78           Function Design of Q2
+12/7 zgs        14:17 15:17               2        59           Function Design of Q2
 
 
-Total Time On Task Q2 (minutes)                  134 
+Total Time On Task Q1 (minutes)                  134 
+Total Time On Task Q2 (minutes)                  243
 TOTQ1 (hours and tenths)                         2.23
+TOTQ2 (hours and tenths)                         4.05
+
+============committing to git: 12/6 20:27 ===================

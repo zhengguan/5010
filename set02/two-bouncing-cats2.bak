@@ -1,0 +1,169 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-beginner-reader.ss" "lang")((modname two-bouncing-cats2) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+;; Two bouncing cat
+;; like bouncing cat, but there are TWO cats. They are individually draggable
+;; and have their own direction. But space pauses or unpauses the entire 
+;; system.
+
+;; bouncing cat.
+;; like draggable cat, but can move in four directions. 
+;; button-down to select, arrow key to change direction.
+
+;; draggable cat.
+;; like falling cat, but user can drag the cat with the mouse.
+;; button-down to select, drag to move, button-up to release
+
+;; falling cat.
+;; A cat falls from the top of the scene.
+;; The user can pause/unpause the cat with the space bar.
+
+;; start with (main 0)
+
+(require 2htdp/universe)
+(require 2htdp/image)
+(require rackunit)
+(require "extras.rkt")
+
+#;(provide initial-world
+         world-after-tick
+         world-after-mouse-event
+         world-after-key-event
+         world-cat1
+         world-cat2
+         world-paused?
+         cat-x-pos
+         cat-y-pos
+         cat-north?
+         cat-east?
+         cat-south?
+         cat-west?)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; MAIN FUNCTION
+
+;; main : Integer -> World
+;; GIVEN the initial y-position of the cats
+;; EFFECT: runs the simulation, starting with the cats falling
+;; RETURNS: the final state of the world
+(define (main y)
+  (big-bang (initial-world y)
+            (on-draw world-to-scene)
+            (on-ticks world-after-tick 0.5)
+            (on-key world-after-key-event)
+            (on-mouse world-after-mouse-event)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; CONSTANTS
+
+(define CAT-IMAGE (bitmap "cat.png"))
+
+;; how fast the cat falls, in pixels/tick
+(define CAT-SPEED 8)
+
+;; dimension of the canvas
+(define CANVAS-WIDTH 450)
+(define CANVAS-HEIGHT 400)
+(define EMPTY-CANVAS (empty-scene CANVAS-WIDTH CANVAS-HEIGHT))
+(define CAT1-X-COORD (/ CANVAS-WIDTH 3))
+(define CAT2-X-COORD (* 2 CAT1-X-COORD))
+
+;; dimension of the cat
+(define HALF-CAT-WIDTH (/ (image-width CAT-IMAGE) 2))
+(define HALF-CAT-HEIGHT (/ (image-height CAT-IMAGE) 2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONs
+
+(define-struct world (cat1 cat2 paused?))
+;; A World is a (make-world Cat Cat Boolean)
+;; cat1 and cat2 are the two cats
+;; paused? describes whether or not the world is paused
+
+;; Template:
+;; world-fn : World -> ?
+;;(define (world-fn w)
+;;  (... (world-cat1 w) (world-cat2 w) (world-paused? w)))
+
+(define-struct cat (x-pos y-pos selected? direction))
+;; A cat is a (make-cat Integer Integer Direction)
+;; x-pos and y-pos is the coordinates of the cat
+;; selected? describes whether or not the world is selected
+;; direction is one of
+;; --"north"
+;; --"east"
+;; --"south"
+;; --"west"
+
+;; Template:
+;; cat-fn : Cat -> ?
+;; (define (cat-fn c)
+;;   (... (cat-x-pos c) (cat-y-pos c) (cat-selected? c)
+;;        (cat-direction c)))
+
+;; Examples:
+(define selected-cat-toward-south-at-150-100 
+  (make-cat 150 100 true "south"))
+(define unselected-cat-toward-south-at-150-100 
+  (make-cat 150 100 false "south"))
+(define selected-cat-toward-south-at-300-100 
+  (make-cat 300 100 true "south"))
+(define unselected-cat-toward-south-at-300-100 
+  (make-cat 300 100 false "south"))
+(define paused-world1 
+  (make-world
+   selected-cat-toward-south-at-150-200
+   unselected-cat-toward-south-at-300-100
+   true))
+(define paused-world1 
+  (make-world
+   selected-cat-toward-south-at-150-200
+   unselected-cat-toward-south-at-300-100
+   false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; initial-world : Integer -> World
+;; GIVEN: a y-coordinate
+;; RETURNS: a world with two unselected cats, spaced evenly across the
+;; canvas in the x-direction, and falling, and placed at the given y
+;; coordinate.
+;; EXAMPLES:
+;; (initial-world 100)
+;; = (make-world unselcted-cat-toward-south-at-150-100
+;;               unselcted-cat-toward-south-at-300-100
+;;               false)
+
+(define (initial-world y)
+  (make-world (make-cat CAT1-X-COORD y false "south")
+              (make-cat CAT2-X-COORD y false "south")
+              false))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (initial-world 100)
+   (make-world unselcted-cat-toward-south-at-150-100
+               unselcted-cat-toward-south-at-300-100
+               false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-to-scene : World -> Scene
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-after-tick : World -> World
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-after-key-event : World KeyEvent -> World
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-after-mouse-event : World Integer Integer MouseEvent -> World
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
