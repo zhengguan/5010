@@ -49,6 +49,9 @@
 (define BALL-COLOR "green")
 (define SQUARE-OF-BALL-RADIUS (sqr BALL-RADIUS))
 
+;; TEXT
+(define TEXT-FONT 24)
+(define TEXT-COLOR "purple")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; DATA DEFINITIONs
@@ -78,24 +81,26 @@
 (define unselected-ball-at-200-150 (make-ball 200 150 false))
 (define selected-ball-at-200-150 (make-ball 200 150 true))
 
-(define-struct world (balls x-coor y-coor))
-;; A World is a (make-world LOBall Integer Integer)
+(define-struct world (balls x-coor y-coor n))
+;; A World is a (make-world LOBall Integer Integer Integer)
 ;; Interpretation:
 ;; balls is the list of all balls in the canvas
 ;; x-coor and y-coor are mouse's coordinate when any ball, they are
 ;; meaningful only when any ball is selected.
+;; n is the number of balls
 ;; Template:
 ;; world-fn : World -> ??
 ;;(define (world-fn w)
 ;;  (... 
 ;;   (world-balls w)
 ;;   (world-x-coor w)
-;;   (world-y-coor w))
+;;   (world-y-coor w)
+;;   (world-n w))
 ;; EXAMPLES:
 (define world-with-one-ball 
-  (make-world (cons unselected-ball-at-200-150 empty) 0 0))
+  (make-world (cons unselected-ball-at-200-150 empty) 0 0 1))
 (define world-with-one-ball-selected
-  (make-world (cons selected-ball-at-200-150 empty) 0 0))
+  (make-world (cons selected-ball-at-200-150 empty) 0 0 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -105,11 +110,11 @@
 ;; EXAMPLES: in TESTS
 ;; STRATEGY: Function Composition
 (define (initial-world any)
-  (make-world empty 0 0))
+  (make-world empty 0 0 0))
 
 ;; TESTS
 (begin-for-test 
-  (check-equal? (initial-world 10) (make-world empty 0 0)))
+  (check-equal? (initial-world 10) (make-world empty 0 0 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -118,29 +123,58 @@
 ;; EXAMPLES: in TESTS
 ;; STRATEGY: Structural Decomposition on w : World
 (define (world-to-scene w)
-  (balls-to-scene (world-balls w)))
+  (balls-to-scene (world-balls w) (world-n w)))
 
 ;; TESTS:
 (begin-for-test
   (check-equal?
    (world-to-scene(initial-world 10))
-   EMPTY-CANVAS)
+   (place-image/align
+    (text (number->string 0) TEXT-FONT TEXT-COLOR)
+    HALF-CANVAS-WIDTH CANVAS-HEIGHT
+    "middle" "bottom"
+    EMPTY-CANVAS))
   (check-equal?
    (world-to-scene world-with-one-ball)
    (place-image (circle BALL-RADIUS "outline" BALL-COLOR)
                 200 150
-                EMPTY-CANVAS)))
+                (place-image/align
+                 (text (number->string 1) TEXT-FONT TEXT-COLOR)
+                 HALF-CANVAS-WIDTH CANVAS-HEIGHT
+                 "middle" "bottom"
+                EMPTY-CANVAS))))
 
-;; balls-to-scene : LOBall -> Scene
-;; RETURNS: a scene that potrays the given list of balls on 
-;; EMPTY-CANVAS
+;; balls-to-scene : LOBall Integer -> Scene
+;; RETURNS: a scene that potrays the given list of balls and text of
+;; the number of balls on EMPTY-CANVAS
 ;; EXAMPLES: in function world-to-scene's TESTS
 ;; STRATEGY: Structural Decomposition on balls : LOBall
-(define (balls-to-scene balls)
+(define (balls-to-scene balls n)
   (cond
-    [(empty? balls) EMPTY-CANVAS]
+    [(empty? balls) (place-text n)]
     [else (place-ball (first balls)
-                      (balls-to-scene (rest balls)))]))
+                      (balls-to-scene (rest balls) n))]))
+
+
+;; place-text : Integer -> Scene
+;; RETURN: a scene which potrays the given number on EMPTY-CANVAS
+;; EXAMPLES: in TESTS
+;; STRATEGY: Funcion Composition
+(define (place-text n)
+  (place-image/align 
+   (text (number->string n) TEXT-FONT TEXT-COLOR)
+   HALF-CANVAS-WIDTH CANVAS-HEIGHT
+   "middle" "bottom"
+   EMPTY-CANVAS))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (place-text 10)
+                (place-image/align 
+                 (text (number->string 10) TEXT-FONT TEXT-COLOR)
+                 HALF-CANVAS-WIDTH CANVAS-HEIGHT
+                 "middle" "bottom"
+                 EMPTY-CANVAS)))
 
 ;; place-ball : Ball Scene -> Scene
 ;; GIVEN: a ball and a scene
@@ -199,7 +233,8 @@
    (cons (make-ball HALF-CANVAS-WIDTH HALF-CANVAS-HEIGHT false)
          (world-balls w))
    (world-x-coor w)
-   (world-y-coor w)))
+   (world-y-coor w)
+   (+ (world-n w) 1)))
     
 
 ;; TESTS
@@ -221,13 +256,13 @@
   (make-world (balls-after-mouse-event 
                (world-balls w) (world-x-coor w)
                (world-y-coor w) x y mev)
-              x y))
+              x y (world-n w)))
 
 ;; TESTS:
 (begin-for-test
   (check-equal?
    (world-after-mouse-event world-with-one-ball 200 150 "button-down")
-   (make-world (cons selected-ball-at-200-150 empty) 200 150)))
+   (make-world (cons selected-ball-at-200-150 empty) 200 150 1)))
 
 
 ;; balls-after-mouse-event : 
