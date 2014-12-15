@@ -1,0 +1,91 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-beginner-abbr-reader.ss" "lang")((modname balls-in-box) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+;; A program that can produce balls which can be drag.
+
+;; Start with (run 0)
+
+(require 2htdp/universe)
+(require 2htdp/image)
+(require rackunit)
+(require "extras.rkt")
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; MAIN FUNCTION
+
+;; run : Any -> World
+;; GIVEN: An argument, which is ignored.
+;; EFFECT: runs the world at tick rate of 0.25 secs/tick.
+;; RETURNS: the final state of the world.
+(define (run any)
+  (big-bang (initial-world any)
+            (on-draw world-to-scene)
+            (on-key world-after-key-event)
+            (on-mouse world-after-mouse-event)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; CONSTANTS
+
+;; CANVAS
+(define CANVAS-WIDTH 400)
+(define CANVAS-HEIGHT 300)
+(define EMPTY-CANVAS (empty-scene CANVAS-WIDTH CANVAS-HEIGHT))
+
+;; BALL
+(define BALL-RADIUS 20)
+(define BALL-COLOR "green")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONs
+
+(define-struct ball (x-pos y-pos selected?))
+;; A Ball is a (make-ball Integer Integer)
+;; Interpretation:
+;; x-pos and y-pos are coordinates of the ball.
+;; selected? describes whether the ball is selected.
+;; Template:
+;; ball-fn : Ball -> ??
+;;(define (ball-fn b)
+;;  (... (ball-x-pos b) (ball-y-pos b)))
+;; Examples:
+
+
+;; A World is a ListOfBalls(LOBall) which is either
+;; -- empty
+;; -- (cons Ball LOBall)
+;; Template:
+;; world-fn : World -> ??
+;;(define (world-fn w)
+;;  (cond
+;;    [(empty? w) ...]
+;;    [else (... (ball-fn (first w))
+;;               (world-fn (rest w)))]))
+;; EXAMPLES:
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-balls : World -> ListOfBalls
+;; GIVEN: a world
+;; RETURNS: the list of balls that are in the box.
+(define (world-balls w)
+  w)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; initial-world : Any -> World
+;; GIVEN: An argument, which is ignored.
+;; RETURNS: a world with no balls.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Function Composition
+(define (intial-world any)
+  empty)
+
+;; TESTS
+(check-equal? (initial-world 10) empty)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
