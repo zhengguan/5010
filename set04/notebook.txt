@@ -1,0 +1,17 @@
+Date  Who       Start Stop  Interruptions Question TimeOnTask    Comments
+12/19 zgs       15:10 15:30               1        20            Function Rewriting of Q1
+12/19 zgs      	16:06 16:38               1        31            Function Rewriting of Q1
+12/19 zgs       18:40 19:00               1        20            Function Rewriting of Q1
+12/19 zgs       19:11 19:32               1        21            Function Rewriting of Q1
+12/19 zgs       19:53 21:39               2        105           Function Rewriting of Q2
+12/23 zgs       14:26 15:06               2        40            Function Rewriting of Q2
+12/23 zgs       19:41 20:16               2        34            Function Rewriting of Q2
+
+
+
+
+Total Time On Task Q1 (minutes)                  91
+Total Time On Task Q2 (minutes)                  179
+TOTQ1 (hours and tenths)                         1.52
+TOTQ2 (hours and tenths)                         2.98
+============committing to git: 12/23 20:21 ===================

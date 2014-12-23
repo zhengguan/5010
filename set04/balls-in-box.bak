@@ -1,0 +1,545 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname balls-in-box) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+;; A program that can produce balls which can be drag.
+
+;; Start with (run 0)
+
+(require 2htdp/universe)
+(require 2htdp/image)
+(require rackunit)
+(require "extras.rkt")
+
+(provide run
+         initial-world
+         world-after-key-event
+         world-after-mouse-event
+         world-balls
+         ball-x-pos
+         ball-y-pos
+         ball-selected?)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; MAIN FUNCTION
+
+;; run : Any -> World
+;; GIVEN: An argument, which is ignored.
+;; EFFECT: runs the world at tick rate of 0.25 secs/tick.
+;; RETURNS: the final state of the world.
+(define (run speed rate)
+  (big-bang (initial-world speed)
+            (on-tick world-after-tick rate)
+            (on-draw world-to-scene)
+            (on-key world-after-key-event)
+            (on-mouse world-after-mouse-event)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; CONSTANTS
+
+;; CANVAS
+(define CANVAS-WIDTH 400)
+(define CANVAS-HEIGHT 300)
+(define EMPTY-CANVAS (empty-scene CANVAS-WIDTH CANVAS-HEIGHT))
+(define HALF-CANVAS-WIDTH (/ CANVAS-WIDTH 2))
+(define HALF-CANVAS-HEIGHT (/ CANVAS-HEIGHT 2))
+
+;; BALL
+(define BALL-RADIUS 20)
+(define BALL-COLOR "green")
+(define SQUARE-OF-BALL-RADIUS (sqr BALL-RADIUS))
+
+;; BALL's BORDER
+(define BALL-LEFT-BORDER BALL-RADIUS)
+(define BALL-RIGHT-BORDER (- CANVAS-WIDTH BALL-RADIUS))
+
+;; TEXT
+(define TEXT-FONT 24)
+(define TEXT-COLOR "purple")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONs
+
+(define-struct ball (x-pos y-pos selected? direction))
+;; A Ball is a (make-ball Integer Integer Boolean String)
+;; Interpretation:
+;; x-pos and y-pos are coordinates of the ball.
+;; selected? describes whether the ball is selected.
+;; direction describes the ball's travelig direction, it is one of:
+;; -- "left"
+;; -- "right"
+
+;; Template:
+;; ball-fn : Ball -> ??
+;;(define (ball-fn b)
+;;  (... (ball-x-pos b) (ball-y-pos b) 
+;;       (ball-selected? b) (ball-direction b)))
+;; Examples:
+
+;; A ListOfBalls(LOBall) is either
+;; -- empty
+;; -- (cons Ball LOBall)
+;; Template:
+;; loball-fn : LOBall -> ??
+;;(define (loball-fn loball)
+;;  (cond
+;;    [(empty? loball) ...]
+;;    [else (... (ball-fn (first loball))
+;;               (loball-fn (rest loball)))]))
+;; EXAMPLES:
+(define unselected-ball-at-200-150 (make-ball 200 150 false "right"))
+(define selected-ball-at-200-150 (make-ball 200 150 true "right"))
+(define unselected-ball-at-400-150 (make-ball 400 150 false "right"))
+
+(define-struct world (balls ball-speed paused? x-coor y-coor n))
+;; A World is a 
+;;  (make-world LOBall PosInt Boolean Integer Integer Integer)
+;; Interpretation:
+;; balls is the list of all balls in the canvas
+;; ball-speed is the ball's speed
+;; paused? describes whether the world is paused
+;; x-coor and y-coor are mouse's coordinate when any ball, they are
+;; meaningful only when any ball is selected.
+;; n is the number of balls
+;; Template:
+;; world-fn : World -> ??
+;;(define (world-fn w)
+;;  (... 
+;;   (world-balls w)
+;;   (world-ball-speed w)
+;;   (world-paused? w)
+;;   (world-x-coor w)
+;;   (world-y-coor w)
+;;   (world-n w))
+;; EXAMPLES:
+(define world-with-one-ball 
+  (make-world (cons unselected-ball-at-200-150 empty) 8 false 0 0 1))
+(define world-with-one-ball-selected
+  (make-world (cons selected-ball-at-200-150 empty) 8 false 0 0 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; initial-world : PosInt -> World
+;; GIVEN: a ball speed.
+;; RETURNS: a world with no balls.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Function Composition
+(define (initial-world speed)
+  (make-world empty speed false 0 0 0))
+
+;; TESTS
+(begin-for-test 
+  (check-equal? (initial-world 8) (make-world empty 8 false 0 0 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-to-scene : World -> Scene
+;; RETURNS: a scene that potrays the given world.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on w : World
+(define (world-to-scene w)
+  (balls-to-scene (world-balls w) (world-n w)))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (world-to-scene(initial-world 10))
+   (place-image/align
+    (text (number->string 0) TEXT-FONT TEXT-COLOR)
+    HALF-CANVAS-WIDTH CANVAS-HEIGHT
+    "middle" "bottom"
+    EMPTY-CANVAS))
+  (check-equal?
+   (world-to-scene world-with-one-ball)
+   (place-image (circle BALL-RADIUS "outline" BALL-COLOR)
+                200 150
+                (place-image/align
+                 (text (number->string 1) TEXT-FONT TEXT-COLOR)
+                 HALF-CANVAS-WIDTH CANVAS-HEIGHT
+                 "middle" "bottom"
+                EMPTY-CANVAS))))
+
+;; balls-to-scene : LOBall Integer -> Scene
+;; RETURNS: a scene that potrays the given list of balls and text of
+;; the number of balls on EMPTY-CANVAS
+;; EXAMPLES: in function world-to-scene's TESTS
+;; STRATEGY: HOFC
+#;(define (balls-to-scene balls n)
+    (cond
+      [(empty? balls) (place-text n)]
+      [else (place-ball (first balls)
+                        (balls-to-scene (rest balls) n))]))
+
+(define (balls-to-scene balls n)
+  (foldr
+   ; Ball Scene -> Scene
+   ; RETURNS: a scene with the given ball painted on the given scene
+   (lambda(b s) (place-ball b s))
+   (place-text n)
+   balls))
+
+
+;; place-text : Integer -> Scene
+;; RETURN: a scene which potrays the given number on EMPTY-CANVAS
+;; EXAMPLES: in TESTS
+;; STRATEGY: Funcion Composition
+(define (place-text n)
+  (place-image/align 
+   (text (number->string n) TEXT-FONT TEXT-COLOR)
+   HALF-CANVAS-WIDTH CANVAS-HEIGHT
+   "middle" "bottom"
+   EMPTY-CANVAS))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (place-text 10)
+                (place-image/align 
+                 (text (number->string 10) TEXT-FONT TEXT-COLOR)
+                 HALF-CANVAS-WIDTH CANVAS-HEIGHT
+                 "middle" "bottom"
+                 EMPTY-CANVAS)))
+
+;; place-ball : Ball Scene -> Scene
+;; GIVEN: a ball and a scene
+;; RETURNS: a scene like the given one, but with the given ball 
+;; painted on it.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+(define (place-ball b s)
+  (if (ball-selected? b)
+      (place-image (circle BALL-RADIUS "solid" BALL-COLOR)
+                   (ball-x-pos b) (ball-y-pos b) s)
+      (place-image (circle BALL-RADIUS "outline" BALL-COLOR)
+                   (ball-x-pos b) (ball-y-pos b) s)))
+                   
+                   
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (place-ball unselected-ball-at-200-150 EMPTY-CANVAS)
+   (place-image (circle BALL-RADIUS "outline" BALL-COLOR)
+                200 150 EMPTY-CANVAS))
+  (check-equal?
+   (place-ball selected-ball-at-200-150 EMPTY-CANVAS)
+   (place-image (circle BALL-RADIUS "solid" BALL-COLOR)
+                200 150 EMPTY-CANVAS)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-after-key-event : World KeyEvent -> World
+;; RETURNS: the world that should follow the given world after the 
+;; given key event.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Cases on kev : KeyEvent
+(define (world-after-key-event w kev)
+  (if (key=? kev "n")
+      (world-add-ball w)
+      w))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (world-after-key-event (initial-world 8) "n")
+   world-with-one-ball)
+  (check-equal? 
+   (world-after-key-event (initial-world 8) " ")
+   (initial-world 8)))
+
+;; world-add-ball : World -> World
+;; RETURNS: a world like the given world, but with a new ball added at
+;; the center.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on w : World
+(define (world-add-ball w)
+  (make-world 
+   (cons (make-ball HALF-CANVAS-WIDTH HALF-CANVAS-HEIGHT false "right")
+         (world-balls w))
+   (world-ball-speed w)
+   (world-paused? w)
+   (world-x-coor w)
+   (world-y-coor w)
+   (+ (world-n w) 1)))
+    
+
+;; TESTS
+(begin-for-test
+  (check-equal?
+   (world-add-ball (initial-world 8))
+   world-with-one-ball))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; world-after-mouse-event : World Integer Integer MouseEvent -> World
+;; GIVEN: A world, the location of a mouse event, and the mouse event
+;; itself.
+;; RETURNS: the world that should follow the given world after the 
+;; given mouse event at the given location.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on w : World
+(define (world-after-mouse-event w x y mev)
+  (make-world (balls-after-mouse-event 
+               (world-balls w) (world-x-coor w)
+               (world-y-coor w) x y mev)
+              (world-ball-speed w) (world-paused? w)
+              x y (world-n w)))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (world-after-mouse-event world-with-one-ball 200 150 "button-down")
+   (make-world (cons selected-ball-at-200-150 empty) 8 false 200 150 1)))
+
+
+;; balls-after-mouse-event : 
+;;   LOBall Integer Integer Integer Integer MouseEvent -> World
+;; GIVEN: a list of balls, the coordinates of mouse's previous position
+;; the location of a mouse event, and the mouse event itself.
+;; RETURNS: the list of balls that should follow the given world after
+;; the given mouse event at the given location.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Strutural Decomposition on lob : LOBall
+#;(define (balls-after-mouse-event lob x-coor y-coor x y mev)
+    (cond
+      [(empty? lob) empty]
+      [else 
+       (cons 
+        (ball-after-mouse-event (first lob) x-coor y-coor x y mev)
+        (balls-after-mouse-event (rest lob) x-coor y-coor x y mev))]))
+
+(define (balls-after-mouse-event lob x-coor y-coor x y mev)
+  (map
+   ; Ball -> Ball
+   ; RETURNS: the ball follows the given one
+   (lambda(b) (ball-after-mouse-event b x-coor y-coor x y mev))
+   lob))
+
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (balls-after-mouse-event
+    (cons unselected-ball-at-200-150 empty)
+    200 150 0 0 "button-down")
+   (cons unselected-ball-at-200-150 empty))
+  (check-equal?
+   (balls-after-mouse-event
+    (cons unselected-ball-at-200-150 empty)
+    0 0 200 150 "button-down")
+   (cons selected-ball-at-200-150 empty)))
+
+
+;; ball-after-mouse-event : 
+;;   Ball Integer Integer Integer Integer MouseEvent -> Ball
+;; GIVEN: a ball, the coordinates of mouse's previous position,
+;; the location of a mouse event, and the mouse event itself.
+;; RETURNS: the ball that should follow the given world after the 
+;; given mouse event at the given location.
+;; EXAMPLES: in TESTS
+;; STRATEGY: Cases on mev : MouseEvent
+(define (ball-after-mouse-event b x-coor y-coor x y mev)
+  (cond
+    [(mouse=? mev "button-down") (ball-after-button-down b x y)]
+    [(mouse=? mev "drag") (ball-after-drag b x-coor y-coor x y)]
+    [(mouse=? mev "button-up") (ball-after-button-up b x y)]
+    [else b]))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (ball-after-mouse-event unselected-ball-at-200-150 0 0
+                           200 150 "button-down")
+   selected-ball-at-200-150)
+  (check-equal?
+   (ball-after-mouse-event unselected-ball-at-200-150 200 150
+                           200 150 "drag")
+   unselected-ball-at-200-150)
+  (check-equal?
+   (ball-after-mouse-event unselected-ball-at-200-150 0 0
+                           200 150 "button-up")
+   unselected-ball-at-200-150)
+  (check-equal?
+   (ball-after-mouse-event unselected-ball-at-200-150 0 0
+                           200 150 "enter")
+   unselected-ball-at-200-150))
+
+;; ball-after-button-down : Ball Integer Integer -> Ball
+;; GIVEN: a ball and the positon of a button down mouse event
+;; RETURNS: the ball should follow the given one after button down 
+;; at the given location
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+(define (ball-after-button-down b x y)
+  (if (in-ball? b x y)
+      (make-ball (ball-x-pos b) (ball-y-pos b) 
+                 true (ball-direction b))
+      b))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (ball-after-button-down unselected-ball-at-200-150 0 0)
+   unselected-ball-at-200-150))
+
+
+;; in-ball? : Ball Integer Integer -> Boolean
+;; GIVEN: a ball and the coordinates of a point
+;; RETURNS: true iff the given point in the ball
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+(define (in-ball? b x y)
+  (<= (+ (sqr (- x (ball-x-pos b)))
+         (sqr (- y (ball-y-pos b))))
+      SQUARE-OF-BALL-RADIUS))
+
+;; TESTS:
+(begin-for-test
+  (check-equal? (in-ball? unselected-ball-at-200-150 200 150) true))
+
+;; ball-after-drag : Ball Integer Integer Integer Integer -> Ball
+;; GIVEN: a ball, the coordinates of mouse's previous position and
+;; the positon of a drag mouse event
+;; RETURNS: the ball should follow the given one after drag at the
+;; given location
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+(define (ball-after-drag b x-coor y-coor x y)
+  (if (ball-selected? b)
+      (make-ball (+ (ball-x-pos b) (- x x-coor))
+                 (+ (ball-y-pos b) (- y y-coor))
+                 (ball-selected? b)
+                 (ball-direction b))
+      b))
+
+
+;; TESTS:
+(begin-for-test
+  (check-equal? 
+   (ball-after-drag selected-ball-at-200-150 200 150 0 0)
+   (make-ball 0 0 true "right")))
+
+;; ball-after-button-up : Ball Integer Integer -> Ball
+;; GIVEN: a ball and the positon of a drag mouse event
+;; RETURNS: the ball should follow the given one after drag at the
+;; given location
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+(define (ball-after-button-up b x y)
+  (if (ball-selected? b)
+      (make-ball (ball-x-pos b) (ball-y-pos b) false (ball-direction b))
+      b))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (ball-after-button-up selected-ball-at-200-150 200 150)
+   unselected-ball-at-200-150))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; world-after-tick : World -> World
+;; RETURNS: the world that should follow the given world after a tick
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on w : World
+(define (world-after-tick w)
+  (if (world-paused? w)
+      w
+      (make-world (balls-after-tick (world-balls w)
+                                    (world-ball-speed w))
+                  (world-ball-speed w)
+                  (world-paused? w)
+                  (world-x-coor w)
+                  (world-y-coor w)
+                  (world-n w))))
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (world-after-tick world-with-one-ball)
+   (make-world (cons (make-ball 208 150 false "right") empty)
+               8 false 0 0 1)))
+
+;; balls-after-tick : ListOfBalls PosInt -> ListOfBalls
+;; GIVEN: a list of balls and their travelling rate
+;; RETURNS: the list of balls that should follow the given list of
+;; balls afte a tick.
+;; EXAMPLES: in TESTS
+;; STRATEGY: HOFC
+(define (balls-after-tick lob speed)
+  (map
+   ; Ball PosInt -> Ball
+   ; GIVEN: a ball and its travelling rate
+   ; RETURNS: the ball after a tick
+   (lambda(b) (ball-after-tick b speed))
+   lob))
+
+
+;; TESTS:
+(begin-for-test
+  (check-equal?
+   (balls-after-tick (list unselected-ball-at-200-150 
+                           unselected-ball-at-400-150) 8)
+   (list (make-ball 208 150 false "right")
+         (make-ball 380 150 false "left"))))
+
+;; ball-after-tick : Ball PosInt -> Ball
+;; GIVEN: a ball and its travelling rate
+;; RETURNS: the ball that should follow the given ball after a tick
+;; EXAMPLES: in function balls-after-tick's TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+#;(define (ball-after-tick b speed)
+    (ball-after-tick-helper
+     (ball-x-pos b)
+     (ball-y-pos b)
+     (ball-selected? b)
+     (ball-direction b)
+     speed))
+
+(define (ball-after-tick b speed)
+  (cond
+    [(string=? (ball-direction b) "left")
+     (ball-toward-left-after-tick b speed)]
+    [(string=? (ball-direction b) "right")
+     (ball-toward-right-after-tick b speed)]))
+
+;; ball-toward-left-after-tick : Ball PosInt -> Ball
+;; ball-toward-right-after-tick : Ball PosInt -> Ball
+;; GIVEN: a ball at the specified direction and its travelling speed
+;; RETURNS: the ball after a tick
+;; EXAMPLES: in TESTS
+;; STRATEGY: Structural Decomposition on b : Ball
+(define (ball-toward-left-after-tick b speed)
+  (if (< (- (ball-x-pos b) speed) BALL-LEFT-BORDER)
+      (make-ball BALL-LEFT-BORDER (ball-y-pos b)
+                 (ball-selected? b) "right")
+      (make-ball (- (ball-x-pos b) speed) (ball-y-pos b)
+                 (ball-selected? b) "left")))
+
+(define (ball-toward-right-after-tick b speed)
+  (if (> (+ (ball-x-pos b) speed) BALL-RIGHT-BORDER)
+      (make-ball BALL-RIGHT-BORDER (ball-y-pos b)
+                 (ball-selected? b) "left")
+      (make-ball (+ (ball-x-pos b) speed) (ball-y-pos b)
+                 (ball-selected? b) "right")))
+
+
+;; TESTS:
+(begin-for-test
+  (check-equal? 
+   (ball-toward-left-after-tick (make-ball 200 150 false "left") 8)
+   (make-ball 192 150 false "left"))
+  (check-equal? 
+   (ball-toward-left-after-tick (make-ball 0 150 false "left") 8)
+   (make-ball BALL-LEFT-BORDER 150 false "right"))
+  (check-equal? 
+   (ball-toward-right-after-tick unselected-ball-at-200-150 8)
+   (make-ball 208 150 false "right"))
+  (check-equal? 
+   (ball-toward-right-after-tick (make-ball 400 150 false "right") 8)
+   (make-ball BALL-RIGHT-BORDER 150 false "left")))
+
+;; out-of-left-border : Integer -> Boolean
+;; out-of-right-border : Integer -> Boolean
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
