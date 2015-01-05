@@ -14,6 +14,7 @@
          initial-world
          world-after-key-event
          world-after-mouse-event
+         world-after-tick
          world-balls
          ball-x-pos
          ball-y-pos
