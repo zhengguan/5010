@@ -1,0 +1,283 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname pretty2) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t write repeating-decimal #f #t none #f ())))
+;; set06 Q2 version2
+;; pretty.rkt
+
+
+(require "extras.rkt")
+(require rackunit)
+(provide make-sum-exp
+         sum-exp-exprs
+         make-mult-exp
+         mult-exp-exprs)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONS
+
+(define-struct sum-exp (exprs))
+(define-struct mult-exp (exprs))
+
+;; An Expr is one of
+;; -- Integer
+;; -- (make-sum-exp NELOExpr)
+;; -- (make-mult-exp NELOExpr)
+;; Interpretation: a sum-up represents a sum and a mult-exp
+;; represents a multiplication.
+;; Template:
+;; expr-fn : Expr -> ??
+#;
+(define (expr-fn e)
+  (cond
+    [(integer? e) ...]
+    [(sum-exp? e) ...]
+    [(mult-exp? e) ...]))
+
+
+;; A LOExpr is one of
+;; -- empty
+;; -- (cons Expr LOExpr)
+
+;; A NELOExpr is a non-empty LOExpr.
+;; Template:
+;; neloe-fn : neloe -> ??
+#;
+(define (neloe-fn neloe)
+  (cond
+    [(empty? neloe) ...]
+    [else (... (first neloe)
+               (neloe-fn (rest neloe)))]))
+#;
+(define (neloe-fn neloe)
+  (cond
+    [(empty? (rest neloe)) ...]
+    [(else (... (first nelos)
+                (neloe-fn (rest neloe))))]))
+#;
+(define (neloe-fn neloe)
+  (... (first neloe)
+       (eloe-fn2 (rest neloe))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; expr-to-string : Expr NonNegInt -> ListOfString
+;; GIVEN: An expression and a width.
+;; RETURNS: A representation of the expression as a sequence of lines,
+;; with each line represented as a string of length not greater than 
+;; width.
+;; EXAMPLES/TESTS:
+#;(begin-for-test
+  (check-equal?
+   (expr-to-string 
+    (make-sum-exp
+     (list
+      (make-mult-exp (list 22 3333 44))
+      (make-mult-exp
+       (list
+        (make-sum-exp (list 66 67 68))
+        (make-mult-exp (list 42 43))))
+      (make-mult-exp (list 77 88))))
+    100)
+  (list "(+ (* 22 3333 44) (* (+ 66 67 68) (* 42 43)) (* 77 88))")))
+;; STRATEGY: Cases on e : Expr
+(define (expr-to-string e width)
+  (expr-to-string-with-blanks e width "" ""))
+
+
+;; one-expr-to-string : Expr PosInt String String -> ListOfString
+
+;; first-expr-to-string : Expr PosInt String String -> ListOfString
+
+;; rest-exprs-to-string 
+;;  : ListOfExprs PosInt String String -> ListOfString
+
+
+;; expr-to-string-helper : Expr NonNegInt NonNegInt -> ListOfString
+;; GIVEN: an expression, the number of characters on the left of this
+;; expression, a width.
+;; RETURNS: A representation of the expression as a sequence of lines,
+;; with each line represented as a string of length not greater than 
+;; width, each line with n blanks at the beginning.
+;; EXAMPLES/TESTS:
+#;(begin-for-test
+  (check-equal?
+   (expr-to-string-with-blanks 10 0 10)
+   (list "10"))
+  (check-equal?
+   (expr-to-string-with-blanks (make-sum-exp (list 1 2)))
+   (list "+ 1 2"))
+  (check-equal?
+   (expr-to-string-with-blanks (make-mult-exp (list 1 2)))
+   (list "* 1 2")))
+;; STRATEGY: Cases on e : Expr
+(define (expr-to-string-helper e width prefix suffix)
+  (if (fit-in-one-line? e 
+                        (- width
+                           (string-length prefix)
+                           (string-length suffix)))
+      (expr-to-one-string e width prefix suffix)
+      (expr-to-mult-strings e width prefix suffix)))
+
+
+;; fit-in-one-line? : Expr NonNegInt -> Boolean
+;; GIVEN: An expression and a width.
+;; RETURNS: true iff the expression can be represented as a string of
+;; length not greater than width.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal?
+   (fit-in-one-line? '(+ 1 2 3))
+   true))
+;; STRATEGY: Function Composition 
+(define (fit-in-one-line? e width)
+  (<= (expr-one-line-length e) width))
+
+;; expr-one-line-legnth : Expr -> PosInt
+;; GIVEN: a expression
+;; RETURNS: the length of the representation of the expression as a 
+;; string.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal?
+   (expr-one-line-length 12)
+   2)
+  (check-equal?
+   (expr-one-line-length (make-sum-exp (list 1 2)))
+   7)
+  (check-equal?
+   (expr-one-line-length (make-mult-exp (list 1 2)))
+   7))
+;; STRATEGY: Cases on e : Expr
+(define (expr-one-line-length e)
+  (cond
+    [(integer? e) (string-length (int->string e))]
+    [(sum-exp? e) (non-int-expr-length e sum-exp-exprs)]
+    [(mult-exp? e) (non-int-expr-length e mult-exp-exprs)]))
+
+;; non-int-expr-length : Expr (Expr -> ListOfExpr) -> PosInt
+;; GIVEN: an expression e, and its corresponding destructor.
+;; WHERE: e is a sum-exp or mult-exp
+;; RETURNS: the length of the representation of the expression as a 
+;; string.
+;; EXAMPLES/TESTS: in function expr-one-line-length.
+;; STRATEGY: Structural Decomposition on e : Expr
+(define (non-int-expr-length e d)
+  (+ 3  ; (,),+ signs
+     (length e) ;blanks before each argument
+     (foldr
+      ; Expr PosInt -> PosInt
+      ; GIVEN: an sub-expression sub-e of an expression e and the 
+      ; length of the string representation of the rest 
+      ; sub-expressions of e.
+      ; RETURNS: the length of sub-expressions with sub-e included.
+      (lambda(sub-e rest-length) 
+        (+ (expr-one-line-length sub-e) rest-length))
+      0
+      (d e))))
+  
+
+;; expr-to-one-string : Expr String String -> String
+;; GIVEN: an expression e.
+;; RETURNS: the representation of e as a single line string.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal?
+   (expr-to-one-string (make-sum-exp (list 1 2 3)))
+   (list "(+ 1 2 3)"))
+  (check-equal?
+   (expr-to-one-string (make-mult-exp (list 1 2 3)))
+   (list "(* 1 2 3)"))
+  (check-equal?
+   (expr-to-one-string 123)
+   "123"))
+;; STRATEGY: Structural Decomposition on e : Expr
+(define (expr-to-one-string e prefix suffix)
+  (cond
+    [(number? e) (int->string e)]
+    [(sum-exp? e) (string-append prefix
+                                 "(+"
+                                 (exprs-to-one-string e)
+                                 suffix
+                                 ")")]
+    [(mult-exp? e) (string-append prefix
+                                  "(+"
+                                  (exprs-to-one-string e)
+                                  ")"
+                                  suffix)]))
+  
+
+
+;; exprs-to-one-string : ListOfExpr -> String
+;; GIVEN: a list of expressions sub-exps all of which are the 
+;; sub-expressions of an expression.
+;; RETURNS: the represention string of the sub-expressions each of 
+;; which has a blank ahead.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal?
+   (exprs-to-one-string (list 1 (make-sum-exp 1 2) (make-mult-exp 1 2)))
+   (list " 1 (+ 1 2) (* 1 2)")))
+;; STRATEGY: HOFC
+(define (exprs-to-one-string loe)
+  (foldl
+   ; Expr String -> String
+   ; GIVEN: an expression sub-exp and a string prev 
+   ; RETURNS: a string the append rest to sub-exp's representation 
+   ; string.
+   (lambda(sub-exp prev)
+     (string-append #\ 
+                    prev
+                    (expr-to-one-string sub-exp)))
+   ""
+   loe))
+   
+
+
+
+;; integer-expr-to-string : Expr NonNegInt NonNegInt -> ListOfString
+;; GIVEN: an expression e, the number of blanks blank-num, a width.
+;; WHERE: e is an integer.
+;; RETURNS: A representation of the expression as a sequence of lines,
+;; with each line represented as a string of length not greater than 
+;; width, each line with n blanks at the beginning.
+;; STRATEGY: Function Composition
+(define (integer-expr-to-string e blanks-num width)
+  (if (<= (string-length (int->string e)) width)
+      (list (string-append (make-string blanks-num #\ )
+                           (int->string e)))
+      (error "not enough room")))
+      
+
+
+
+;; sum-expr-to-string : Expr NonNegInt NonNegInt -> ListOfString
+;; GIVEN: an expression e, the number of blanks blank-num, a width.
+;; WHERE: e is a Sum-Exp.
+;; RETURNS: A representation of the expression as a sequence of lines,
+;; with each line represented as a string of length not greater than 
+;; width, each line with n blanks at the beginning.
+;; EXAMPLES/TESTS:
+;(begin-for-t
+;; STRATEGY: Structural Decomposition on se : Sum-Exp
+(define (sum-expr-to-string se blanks-num width)
+  (exprs-to-strings-with-blanks (sum-exp-exprs se)
+                                blanks-sum
+                                width))
+  
+
+
+;; mult-expr-to-string : Expr NonNegInt NonNegInt -> ListOfString
+;; GIVEN: an expression e, the number of blanks blank-num, a width.
+;; WHERE: e is a Mult-Exp.
+;; RETURNS: A representation of the expression as a sequence of lines,
+;; with each line represented as a string of length not greater than 
+;; width, each line with n blanks at the beginning.
+;; EXAMPLES/TESTS:
+;; STRATEGY: Structural Decomposition on me : Mult-Exp
+(define (mult-expr-to-string se blanks-num width)
+  (exprs-to-strings-with-blanks (mult-exp-exprs me)
+                                blanks-sum width))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
