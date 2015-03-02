@@ -1,0 +1,1 @@
+("6.1.1" ("611e452651a0928ecc323d261f98ca61cd0ac592" . "2e87cdf3f17be2ecc5ae86626ae345760a83a2ae") (collects #"errortrace" #"errortrace-key.rkt") #"D:\\5010\\set07\\extras.rkt" (collects #"lang" #"htdp-intermediate-lambda.rkt") (collects #"rackunit" #"main.rkt") #"D:\\5010\\set07\\sets.rkt" (collects #"lang" #"htdp-intermediate-lambda-reader.rkt"))

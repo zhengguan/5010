@@ -1,0 +1,1 @@
+("6.1.1" ("6458c65a13e6846b50d82936458a7369e2e05746" . "f551eab280602e727f76d1f4f9e75a39541ad0e9") #"D:\\5010\\set07\\extras.rkt" (collects #"lang" #"htdp-intermediate-lambda.rkt") (collects #"rackunit" #"main.rkt") (collects #"lang" #"htdp-intermediate-lambda-reader.rkt"))

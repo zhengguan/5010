@@ -1,0 +1,112 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname obstacles) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f ())))
+;; set 07 Q1
+
+;; obstacles.rkt
+(require "extras.rkt")
+(require rackunit)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONS
+
+;; A Position is a (list PosInt PosInt)
+;; (x y) represents the position x, y.
+;; Note: this is not to be confused with the built-in data type Posn.
+
+;; A PositionSet is a list of positions without duplication.
+
+;; A PositionSetSet is a list of PositionSets without duplication,
+;; that is, no two position-sets denote the same set of positions.
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; FUNCTION DEFINITIONS
+
+;; position-set-equal? : PositionSet PositionSet -> Boolean
+;; GIVEN: two PositionSets
+;; RETURNS: true iff they denote the same set of positions.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal?
+   (position-set-equal? (list (list 1 2) (list 1 3))
+                        (list (list 1 3) (list 1 2)))
+   true)
+  (check-equal?
+   (position-set-equal? (list (list 1 2) (list 1 3))
+                        (list (list 1 3) (list 1 2) (list 1 4)))
+   false))
+;; STRATEGY: Function Composition
+(define (position-set-equal? ps1 ps2)
+  (and (position-set-contain? ps1 ps2)
+       (position-set-contain? ps2 ps1)))
+
+;; position-set-contain? : PositionSet PositionSet -> Boolean
+;; GIVEN: two PositionSets
+;; RETURNS: true iff the first position set contains the second 
+;; position set.
+;; EXAMPLES/TESTS:
+;; STRATEGY: HOFC
+(define (position-set-contain? ps1 ps2)
+  (andmap
+   ; Position -> Boolean
+   ; GIVEN: a position in ps2
+   ; RETURNS: true iff ps1 contains the position
+   (lambda(p) (position-contain? ps1 p))
+   ps2))
+
+;; position-contain? : PositionSet Position -> Boolean
+;; RETURNS: true iff the given PositionSet contains the given osition.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal? 
+   (position-contain? (list (list 1 2) (list 1 3))
+                      (list 1 2))
+   true)
+  (check-equal? 
+   (position-contain? empty (list 1 2))
+   false))
+;; STRATEGY: HOFC
+(define (position-contain? ps p)
+  (ormap
+   ; Position -> Boolean
+   ; GIVEN: a position x
+   ; RETURNS: true iff x equals to p
+   (lambda(x) (position-equal? x p))
+   ps))
+
+;; position-equal? : Position Position -> Boolean
+;; GIVEN: two Positions
+;; RETURNS: true iff the given two positions are equal.
+;; EXAMPLES/TESTS:
+(begin-for-test
+  (check-equal?
+   (position-equal? (list 1 2 ) (list 1 3))
+   false)
+  (check-equal?
+   (position-equal? (list 1 2 ) (list 1 2))
+   true))
+;; STRATEGY: Structural Decomposition on Position
+(define (position-equal? p1 p2)
+  (and (= (first p1) (first p2))
+       (= (first (rest p1)) (first (rest p2)))))
+
+
+
+;; obstacle? : PositionSet -> Boolean
+;; GIVEN: a PositionSet
+;; RETURNS: true iff the set of positions would be an obstacle if they
+;; were all occupied and all other positions were vacant.
+;;
+;; blocks-to-obstacles : PositionSet -> PositionSetSet
+;; GIVEN: the set of occupied positions on some chessboard
+;; RETURNS: the set of obstacles on that chessboard.
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
