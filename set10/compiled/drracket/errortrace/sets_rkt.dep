@@ -1,0 +1,1 @@
+("6.0.1" ("6890ecd0cca6dc41e34b070b4ac41ba21a67fdea" . "a32059252845d61c3c6493615b9266e84e220363") #"D:\\GitHub\\5010\\set10\\extras.rkt" (collects #"lang" #"htdp-intermediate-lambda.rkt") (collects #"rackunit" #"main.rkt") (collects #"lang" #"htdp-intermediate-lambda-reader.rkt"))

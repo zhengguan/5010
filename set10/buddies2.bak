@@ -1,0 +1,1174 @@
+;; set 10 Q2
+;; toys.rkt
+
+#lang racket
+
+(require rackunit)
+(require "extras.rkt")
+(require 2htdp/universe)   
+(require 2htdp/image)      
+(require "sets.rkt")
+
+(provide World%
+         SquareToy%
+         ;CircleToy%
+         make-world
+         run
+         make-square-toy
+         ;make-circle-toy
+         StatefulWorld<%>
+         StatefulToy<%>)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONS
+(define CANVAS-WIDTH 400)
+(define CANVAS-HEIGHT 500)
+(define HALF-CANVAS-WIDTH (/ CANVAS-WIDTH 2))
+(define HALF-CANVAS-HEIGHT (/ CANVAS-HEIGHT 2))
+(define EMPTY-CANVAS 
+  (empty-scene CANVAS-WIDTH CANVAS-HEIGHT))
+
+;; A Direction is on of
+;; -- "right"
+;; -- "left"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; World%     -- a class that satisfies the World<%> interface (shown below).
+;; SquareToy% -- a class that satisfies the Toy<%> interface
+;; CircleToy% -- a class that satisfies the Toy<%> interface
+
+;; make-world : PosInt -> World%
+;; RETURNS: a world with a target, but no toys, and in which any
+;; toys created in the future will travel at the given speed (in pixels/tick).
+(define (make-world)
+  (new World%))
+
+;; run : PosNum PosInt -> World%
+;; GIVEN: a frame rate (in seconds/tick) and a square-speed (in pixels/tick),
+;; creates and runs a world.  Returns the final state of the world.
+(define (run frame-rate)
+  (big-bang (make-world)
+            (on-tick 
+             (lambda(w) (send w on-tick) w)
+             frame-rate)
+            (on-draw
+             (lambda(w) (send w on-draw)))
+            (on-key
+             (lambda(w kev) (send w on-key kev) w))
+            (on-mouse
+             (lambda(w x y mev) (send w on-mouse x y mev) w))))
+
+;; make-square-toy : PosInt PosInt PosInt -> SquareToy%
+;; GIVEN: an x and a y position, and a speed
+;; RETURNS: an object representing a square toy at the given position,
+;; travelling right at the given speed.
+(define (make-square-toy x y speed)
+  (new SquareToy% [x x] [y y] [s speed]))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Interfaces:
+
+;; Interfaces for set 10
+(define StatefulWorld<%>
+  (interface ()
+    
+    ;; -> Void
+    ;; EFFECT: updates this World StatefulWorld<%> to the state that it should be in after
+    ;; a tick.
+    on-tick                             
+    
+    ;; Integer Integer MouseEvent -> Void
+    ;; EFFECT: updates this World<%> StatefulWorld<%> to the state that it should be in
+    ;; after the given MouseEvent
+    on-mouse
+    
+    ;; KeyEvent -> Void
+    ;; EFFECT: updates this World<%> StatefulWorld<%> to the state that it should be in
+    ;; after the given KeyEvent
+    on-key
+    
+    ;; -> Scene
+    ;; Returns a Scene depicting this world StatefulWorld<%>
+    ;; on it.
+    on-draw 
+    
+    ;; -> Integer
+    ;; RETURN: the x and y coordinates of the target
+    target-x
+    target-y
+    
+    ;; -> Boolean
+    ;; Is the target selected?
+    target-selected?
+    
+    ;; -> ColorString
+    ;; color of the target
+    target-color
+    
+    ;; -> ListOfStatefulToy<%>
+    get-toys
+    
+    ))
+
+;; 
+(define StatefulToy<%> 
+  (interface ()
+    
+    ;; Integer Integer MouseEvent -> Void
+    ;; EFFECT: updates this StatefulToy<%> to the 
+    ;;         state that it should be in after the given MouseEvent
+    on-mouse
+    
+    ;; Scene -> Scene
+    ;; Returns a Scene like the given one, but with this toy StatefulToy<%> drawn
+    ;; on it.
+    add-to-scene
+    
+    ;; -> Int
+    toy-x
+    toy-y
+    
+    ;; -> ColorString
+    ;; returns the current color of this toy StatefulToy<%>
+    toy-color
+    
+    ;; -> Boolean
+    ;; Is this StatefulToy<%> selected?
+    toy-selected?
+    ))
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; CLASSES
+
+;; A World% is a 
+;; (new World% [s PosNum] [target Target%] [toys ListOf<Toy%>])
+;; RETPRESENTS: A world state.
+(define World%
+  (class* object% (StatefulWorld<%>)
+    (init-field [target       ;target
+                 (new Target%  
+                      [x HALF-CANVAS-WIDTH] 
+                      [y HALF-CANVAS-HEIGHT])])
+    (init-field [toy-factory      ;factory
+                 (new ToyFactory%
+                      [world this]
+                      [target target])])
+    (init-field [toys empty])  ; Toys
+    
+    (super-new)
+                
+    ;; on-tick -> Void
+    ;; EFFECT: set the world to what it should be after a tick.
+    (define/public (on-tick)
+      (for-each
+       (lambda(elt) (send elt on-tick))
+       toys))
+
+    ;; Integer Integer MouseEvent -> Void
+    ;; Effect sent mouse event
+    ;; DETAIL: Target% and Toy% are reponsive to mouse event.
+    (define/public (on-mouse x-pos y-pos mev)
+      (send target on-mouse x-pos y-pos mev)
+      (for-each
+       (lambda(obj) (send obj on-mouse x-pos y-pos mev))
+       toys))
+    
+    ;; overlap-square-toys : SquareToy% -> ListOf<SquareToy%>
+    ;; GIVEN: a SquareToy%.
+    ;; RETURNS: SquareToys that are overlap with the given one.
+    ;; STRATEGY: HOFC
+    (define/public (overlap-square-toys st)
+      (filter
+       (lambda(elt) 
+         (and (not(equal? st elt))
+              (send st overlap-with-square-toy? elt)))
+       toys))
+    
+    
+    ;; KeyEvent -> Void
+    ;; EFFECT: Set this to what it should be after the given KeyEvent.
+    ;; STRATEGY: Cases on kev : KeyEvent
+    ;; DETAILS: Only ToyFactory% is responsive to key event.
+    (define/public (on-key kev)
+      (send toy-factory on-key kev))
+
+    ;; -> Scene
+    ;; Returns a Scene depicting this world
+    ;; on it.
+    (define/public (on-draw)
+      (local ((define scene1 
+                (send target add-to-scene EMPTY-CANVAS)
+                #;(foldr 
+                 (lambda(obj old-scene) 
+                   (send obj add-to-scene old-scene))
+                 EMPTY-CANVAS
+                 stateful-objects)))
+        (foldr
+         (lambda(t old-scene)
+           (send t add-to-scene old-scene))
+         scene1
+         toys)))
+    
+    ;; -> Integer
+    ;; RETURN: the x or y coordinates of the target
+    (define/public (target-x)
+      (send target get-x))
+    
+    (define/public (target-y)
+      (send target get-y))
+
+    ;; -> Boolean
+    ;; Is the target selected?
+    (define/public (target-selected?)
+      (send target get-selected?))
+
+    ;; -> ListOfToy<%>
+    ;; RETURNS: the list of toys of this.
+    (define/public (get-toys)
+      toys)    
+    
+    
+    ;; add-toy : Toy<%s> -> Void
+    ;; EFFECT: Add the given toy to toys.
+    (define/public (add-toy new-toy)
+      (set! toys (cons new-toy toys)))
+    
+    ;; for-test:get-all-objects 
+    ;; : -> (list (list StatefulObject%) (list Toys<%>)))
+    ;; RETURNS: A list of the StatefulObjects% and Toys<%> in this
+    ;; world.
+    #;(define/public (for-test:get-all-objects)
+      (list stateful-objects toys))
+    
+    ;; -> ColorString
+    ;; color of the target
+    (define/public (target-color)
+      (send target get-color))
+    
+    
+    ))
+
+
+
+;; A Target% is a 
+;; (new Target% [x NonNegInt] [y NonNegInt] [s? Boolean] 
+;;      [x-dist Integer] [y-dist Integer])
+;; REPRESENTS: A target circle
+(define Target%
+  (class* object% ()
+    (init-field x  ; x position
+                y  ; y position
+                [selected? false]) ; Selected state
+    (init-field [x-dist 0]  ; the x-dist from mouse's location to this.
+                [y-dist 0]) ; the y-dist from mouse's location to this.
+    
+    (field [radius 10]        ; radius
+           [mode "outline"]   ; mode
+           [color "black"])   ; color string
+    
+    ;; ListOf<(Integer Integer -> Void)>
+    (field [delegates-for-center empty])  
+    
+    (super-new)
+    
+    ;; subscribe-center : (Integer Integer -> Void) -> Void
+    ;; EFFECT: Add the given delegate to delegates-for-center.
+    (define/public (subscribe-center delegate)
+      (set! delegates-for-center 
+            (cons delegate delegates-for-center)))
+    
+    ;; publish-center : Integer Integer -> Void
+    ;; EFFECT: publish the center's coordinates to all delegates.
+    (define/public (publish-center x-pos y-pos)
+      (for-each
+       (lambda(d)
+         (d x-pos y-pos))
+       delegates-for-center))
+    
+    ;; Integer Integer MouseEvent -> Void
+    ;; EFFECT: set this to what it should be after the given 
+    ;; MouseEvent
+    ;; STRATEGY: Cases on mev : MouseEvent
+    (define/public (on-mouse x-pos y-pos mev)
+      (cond
+        [(mouse=? mev "button-down")  
+         (target-after-button-down x-pos y-pos)]
+        [(mouse=? mev "button-up")
+         (target-after-button-up x-pos y-pos)]
+        [(mouse=? mev "drag")
+         (target-after-drag x-pos y-pos)]
+        [else this]))
+    
+    ;; target-after-button-down: Integer Integer -> Void
+    ;; GIVEN: the location of a mouse event.
+    ;; EFFECT: set this to what it should be after a button-down at 
+    ;; the given location.
+    (define/public (target-after-button-down x-pos y-pos)
+      (if (send this in-target? x-pos y-pos)
+          (begin (set! selected? true)
+                 (set! color "orange")
+                 (set! x-dist (- x x-pos))
+                 (set! y-dist (- y y-pos)))
+          this))
+    
+    ;; target-after-button-up: Integer Integer -> Target%
+    ;; GIVEN: the location of a mouse event.
+    ;; RETURNS: the target that should follow this one after a 
+    ;; button-down at the given location.
+    (define/public (target-after-button-up x-pos y-pos)
+      (set! selected? false)
+      (set! color "black"))
+    
+    ;; target-after-drag: Integer Integer -> Target%
+    ;; GIVEN: the location of a mouse event.
+    ;; RETURNS: the target that should follow this one after a 
+    ;; button-down at the given location.
+    (define/public (target-after-drag x-pos y-pos)
+      (if selected?
+          (begin
+               (set! x (+ x-pos x-dist))
+               (set! y (+ y-pos y-dist))
+               (publish-center x y))
+          this))
+    
+    
+    
+    ;; in-target? : Integer Integer -> Boolean
+    ;; GIVEN: the coordinates of a position.
+    ;; RETURNS: true iff the position is in this.
+    (define/public (in-target? x-pos y-pos)
+      (<= (+ (sqr (- x x-pos))
+             (sqr (- y y-pos)))
+          (sqr radius)))
+
+    ;; on-key : KeyEvent -> Target%
+    ;; Returns the Target% that should follow the one after the 
+    ;; given KeyEvent
+    (define/public (on-key kev)
+      this)
+    
+    
+    ;; add-to-scene : Scene -> Scene
+    ;; RETURNS: A Scene like the given one, but with this target 
+    ;; depicted on it.
+    (define/public (add-to-scene scene0)
+      (place-image (circle radius mode color) x y scene0))
+    
+    
+    
+    ;; -> Integer
+    ;; RETURNS: the x or y coordinates.
+    (define/public (get-x)
+      x)
+    (define/public (get-y)
+      y)
+    
+    ;; -> Boolean
+    ;; RETURNS: True iff this is selected.
+    (define/public (get-selected?)
+      selected?)
+    
+    ;; target-x-dist -> Integer
+    ;; target-y-dist -> Integer
+    ;; RETURNS: the distant from mouse location to this target center.
+    (define/public (get-x-dist)
+      x-dist)
+    
+    (define/public (get-y-dist)
+      y-dist)
+    
+    ;; -> ColorString
+    ;; RETURNS: this target's color
+    (define/public (get-color)
+      color)
+    
+    ))
+
+
+
+;; A SquareToy% is a 
+;; (new SquareToy% [x NonNegInt] [y NonNegInt] 
+;;      [buddies ListOf<SquareToy%>])
+;; RETPRESENTS: A square toy.
+;; In this class new buddies will be added during mouse event drag.
+#;
+(define SquareToy%
+  (class* object% (StatefulToy<%>)
+    (init-field x           ; Center's x coordinate
+                y           ; Center's y coordinate
+                world
+                [selected? false]   ; Selected state.
+                [buddies empty])    ; Buddies 
+    ;(init-field world)      ; World
+    (init-field [x-dist 0]  ; the x-dist from mouse's location to this.
+                [y-dist 0]) ; the y-dist from mouse's location to this.    
+    
+    (field [mode "outline"] ; Mode
+           [color "green"]  ; Color string
+           [length 30]      ; Side length
+           [half-length 30]); Half side length
+           
+    (super-new)
+        
+    ;; on-mouse : Integer Integer MouseEvent -> Void
+    ;; EFFECT: set this to what it should be after the given mouse
+    ;; event at the given location.
+    ;; STRATEGY: Cases on mev : MouseEvent
+    (define/public (on-mouse x-pos y-pos mev)
+      (cond
+        [(mouse=? mev "button-down")
+         (send this after-button-down x-pos y-pos)]
+        [(mouse=? mev "drag")
+         (send this after-drag x-pos y-pos)]
+        [(mouse=? mev "button-up")
+         (send this after-button-up)]
+        [else this]))
+    
+    ;; after-button-down : Integer Integer -> Void
+    ;; EFFECT: set this to what it should be after the button down
+    ;; mouse event at the given location.
+    (define/public (after-button-down x-pos y-pos)
+      (if (in-square-toy? x-pos y-pos)
+          (send this select x-pos y-pos)
+          this))
+    
+    ;; in-square-toy? : Integer Integer -> Boolean
+    ;; GIVEN: The position of a mouse event
+    ;; RETURNS: true iff the location is located in this square toy.
+    (define/public (in-square-toy? x-pos y-pos)
+      (and (<= (abs (- x-pos x)) half-length)
+           (<= (abs (- y-pos y)) half-length)))
+    
+    ;; select : -> Void
+    ;; EFFECT: select this and its buddies.
+    (define/public (select x-pos y-pos)
+      (send this select-this x-pos y-pos)
+      (for-each
+       (lambda(elt)(send elt select-by-buddy x-pos y-pos))
+       buddies))
+    
+    ;; selected-this : -> Void
+    ;; EFFECT: select this.
+    (define/public (select-this x-pos y-pos)
+      (set! selected? true)
+      (set! color "red")
+      (set! x-dist (- x x-pos))
+      (set! y-dist (- y y-pos)))
+    
+    ;; select-by-buddy : -> Void
+    ;; EFFECT: select this by a buddy.
+    (define/public (select-by-buddy x-pos y-pos)
+      (set! color "red")
+      (set! x-dist (- x x-pos))
+      (set! y-dist (- y y-pos)))
+    
+    ;; after-drag : Integer Integer -> Void
+    ;; EFFECT: set this to what it should be after the drag mouse
+    ;; event at the given location.
+    (define/public (after-drag x-pos y-pos)
+      (if selected? 
+          (begin
+            (for-each
+             (lambda(elt) (send elt drag-by-buddy x-pos y-pos))
+             buddies)
+            (send this drag x-pos y-pos)
+            )
+          this))
+    
+    ;; drag : Integer Integer -> Void
+    ;; EFFECT: drag this.
+    ;; DETAIL: if overlaped with new square toys in dragging, select 
+    ;; them, add them to buddies and add this to the buddies of them.
+    (define/public (drag x-pos y-pos)
+      (send this change-center x-pos y-pos)
+      (local 
+        ((define new-buddies 
+           (set-diff (send world overlap-square-toys this) buddies)))
+        (for-each 
+         (lambda(elt) (send elt select-by-buddy x-pos y-pos))
+         new-buddies)
+        (for-each 
+         (lambda(elt) (send elt add-buddy this))
+         new-buddies)
+        (send this add-buddies new-buddies)))
+    
+    ;; drag-by-buddy : Integer Integer -> Void
+    ;; EFFECT: drag this by buddy.
+    ;; DETAIL: if overlaped with new square toys in dragging, 
+    ;; add them to buddies and add this to the buddies of them.
+    (define/public (drag-by-buddy x-pos y-pos)
+      (send this change-center x-pos y-pos)
+      (local 
+        ((define new-buddies 
+           (set-diff (send world overlap-square-toys this) buddies)))
+        (for-each 
+         (lambda(elt) (send elt add-buddy this))
+         new-buddies)
+        (send this add-buddies new-buddies)))
+    
+    ;; change-center : Integer Integer -> Void
+    ;; EFFECT: Set this toys's center to the given coordinate.
+    (define/public (change-center x-pos y-pos)
+      (set! x (+ x-pos x-dist))
+      (set! y (+ y-pos y-dist)))
+    
+    ;; add-buddies : ListOf<SquareToy%> -> Void
+    ;; WHERE: the given list of square toys is disjoint from buddies.
+    ;; EFFECT: Add the given square toys to buddies.
+    (define/public (add-buddies new-buddies)
+      (set! buddies (append new-buddies buddies)))
+    
+    ;; add-buddy : SquareToy% -> Void
+    ;; WHERE: the given SquareToy% is not in buddies.
+    ;; EFFECT: Add the given square toy to buddies.
+    (define/public (add-buddy new-buddy)
+      (set! buddies (cons new-buddy buddies)))
+    
+    ;; overlap-with-square-toy? : SquareToy% -> Boolean
+    ;; RETURNS: true iff this overlap with the given square toy.
+    (define/public (overlap-with-square-toy? st)
+      (send st overlap-with-square-toy?-helper x y))
+    
+    ;; overlap-with-square-toy?-helper : Integer Integer -> Boolean
+    ;; GIVEN: the center position of a square toy.
+    (define/public (overlap-with-square-toy?-helper x-coor y-coor)
+      (and (<= (abs (- x-coor x)) length)
+           (<= (abs (- y-coor y)) length)))
+      
+    ;; after-button-up : Integer Integer -> Void
+    ;; EFFECT: set this to what it should be after the button up
+    ;; mouse event at the given location.
+    (define/public (after-button-up)
+      (if selected?
+          (send this unselect)
+          this))
+    
+    ;; unselect : -> Void
+    ;; EFFECT: Unselect this and its buddies.
+    (define/public (unselect)
+      (send this unselect-this)
+      (for-each
+       (lambda(elt) (send elt unselect-by-buddy))
+       buddies))
+    
+    ;; unselect-this : -> Void
+    ;; EFFECT: Unselect this
+    (define/public (unselect-this)
+      (set! selected? false)
+      (set! color "green")
+      (set! x-dist 0)
+      (set! y-dist 0))
+    
+        
+    ;; unselect-by-buddy : -> Void
+    ;; EFFECT: Unselect this by a buddy.
+    (define/public (unselect-by-buddy)
+      (set! color "green")
+      (set! x-dist 0)
+      (set! y-dist 0))
+      
+    
+    ;; Scene -> Scene
+    ;; Returns a Scene like the given one, but with this toy drawn
+    ;; on it.
+    (define/public (add-to-scene scene0)
+      (place-image (square length mode color) x y scene0))
+
+    ;; -> Int
+    ;; RETURNS: the x's or y's coordinate of the toy's center.
+    (define/public (toy-x)
+      x) 
+    
+    (define/public (toy-y)
+      y)
+
+    ;; -> ColorString
+    ;; returns the current color of this toy
+    (define/public (toy-color)
+      color)
+    
+    ;; -> Boolean
+    ;; RETURNS: this toy's selected state.
+    (define/public (toy-selected?)
+      selected?)
+    
+    ;; for-test:toy-equal? : Toy<%> -> Boolean
+    ;; RETURNS: true iff the given toy equal to this
+    (define/public (for-test:toy-equal? t)
+      (and (equal? (object-name t)
+                   (object-name this))
+           (square-toy-equal? t this)))
+    
+    ))
+
+
+;; A SquareToy% is a 
+;; (new SquareToy% [x NonNegInt] [y NonNegInt] 
+;;      [buddies ListOf<SquareToy%>])
+;; RETPRESENTS: A square toy.
+;; In this class new buddies will be added during on-tick.
+(define SquareToy%
+  (class* object% (StatefulToy<%>)
+    (init-field x           ; Center's x coordinate
+                y           ; Center's y coordinate
+                world
+                [selected? false]   ; Selected state.
+                [buddies empty])    ; Buddies 
+    ;(init-field world)      ; World
+    (init-field [x-dist 0]  ; the x-dist from mouse's location to this.
+                [y-dist 0]) ; the y-dist from mouse's location to this.    
+    
+    (field [mode "outline"] ; Mode
+           [color "green"]  ; Color string
+           [length 30]      ; Side length
+           [half-length 30]); Half side length
+           
+    (super-new)
+
+    ;; on-tick : -> Void
+    ;; EFFECT: set this toy to what it should be after a tick.
+    (define/public (on-tick)
+      (if selected?
+          (begin
+            (send this add-buddies)
+            (for-each
+             (lambda(elt) (send elt add-buddies-by-buddy))
+             buddies))
+          this))
+      
+    ;; add-buddies : -> Void
+    ;; EFFECT: add new buddies
+    ;; DETAIL: this is selected, so the added buddies have to be
+    ;; set to red and move along with this when drag occurs.
+    (define/public (add-buddies)
+      (local 
+        ((define new-buddies 
+           (set-diff (send world overlap-square-toys this) 
+                     buddies)))
+        ; select each new buddy
+        (for-each 
+         (lambda(elt) 
+           (send elt select-by-buddy (- x x-dist) (- y y-dist)))
+         new-buddies)
+        ; add this to each new buddy.
+        (send this add-to-buddies new-buddies)
+        ; add new buddies 
+        (set! buddies (append new-buddies buddies))
+        #;(send this add-buddies new-buddies)))
+    
+    ;; add-buddies-by-buddy : -> Void
+    ;; EFFECT: add new buddies
+    ;; DETAIL: this is not selected, so the added buddies do not move.
+    (define/public (add-buddies-by-buddy)
+      (local 
+        ((define new-buddies 
+           (set-diff (send world overlap-square-toys this) 
+                     buddies)))
+        ; add this to each new buddy.
+        (send this add-to-buddies new-buddies)
+        ; add new buddies 
+        (set! buddies (append new-buddies buddies))
+        #;(send this add-buddies new-buddies)))
+    
+    ;; add-to-buddies : ListOf<SquareToy%> -> Void
+    ;; EFFECT: add this to the given toys' buddies.
+    (define/public (add-to-buddies new-buddies)
+      (for-each 
+       (lambda(elt) (send elt add-buddy this))
+       new-buddies))
+    
+        
+    ;; add-buddies : ListOf<SquareToy%> -> Void
+    ;; WHERE: the given list of square toys is disjoint from buddies.
+    ;; EFFECT: Add the given square toys to buddies.
+    #;(define/public (add-buddies new-buddies)
+      (set! buddies (append new-buddies buddies)))
+    
+    ;; add-buddy : SquareToy% -> Void
+    ;; WHERE: the given SquareToy% is not in buddies.
+    ;; EFFECT: Add the given square toy to buddies.
+    (define/public (add-buddy new-buddy)
+      (set! buddies (cons new-buddy buddies)))
+    
+    ;; on-mouse : Integer Integer MouseEvent -> Void
+    ;; EFFECT: set this to what it should be after the given mouse
+    ;; event at the given location.
+    ;; STRATEGY: Cases on mev : MouseEvent
+    (define/public (on-mouse x-pos y-pos mev)
+      (cond
+        [(mouse=? mev "button-down")
+         (send this after-button-down x-pos y-pos)]
+        [(mouse=? mev "drag")
+         (send this after-drag x-pos y-pos)]
+        [(mouse=? mev "button-up")
+         (send this after-button-up)]
+        [else this]))
+    
+    ;; after-button-down : Integer Integer -> Void
+    ;; EFFECT: set this to what it should be after the button down
+    ;; mouse event at the given location.
+    (define/public (after-button-down x-pos y-pos)
+      (if (in-square-toy? x-pos y-pos)
+          (send this select x-pos y-pos)
+          this))
+    
+    ;; in-square-toy? : Integer Integer -> Boolean
+    ;; GIVEN: The position of a mouse event
+    ;; RETURNS: true iff the location is located in this square toy.
+    (define/public (in-square-toy? x-pos y-pos)
+      (and (<= (abs (- x-pos x)) half-length)
+           (<= (abs (- y-pos y)) half-length)))
+    
+    ;; select : Integer Integer -> Void
+    ;; GIVEN: the position of mouse.
+    ;; EFFECT: select this and its buddies.
+    (define/public (select x-pos y-pos)
+      (send this select-this x-pos y-pos)
+      (for-each
+       (lambda(elt)(send elt select-by-buddy x-pos y-pos))
+       buddies))
+    
+    ;; selected-this : Integer Integer -> Void
+    ;; GIVEN: the position of mouse.
+    ;; EFFECT: select this.
+    (define/public (select-this x-pos y-pos)
+      (set! selected? true)
+      (set! color "red")
+      (set! x-dist (- x x-pos))
+      (set! y-dist (- y y-pos)))
+    
+    ;; select-by-buddy : Integer Integer -> Void
+    ;; GIVEN: the position of mouse.
+    ;; EFFECT: select this by a buddy.
+    (define/public (select-by-buddy x-pos y-pos)
+      (set! color "red")
+      (set! x-dist (- x x-pos))
+      (set! y-dist (- y y-pos)))
+    
+    ;; after-drag : Integer Integer -> Void
+    ;; EFFECT: set this to what it should be after the drag mouse
+    ;; event at the given location.
+    (define/public (after-drag x-pos y-pos)
+      (if selected? 
+          (begin
+            (for-each
+             (lambda(elt) (send elt change-center x-pos y-pos))
+             buddies)
+            (send this change-center x-pos y-pos))
+          this))
+    
+    ;; drag : Integer Integer -> Void
+    ;; EFFECT: drag this.
+    ;; DETAIL: if overlaped with new square toys in dragging, select 
+    ;; them, add them to buddies and add this to the buddies of them.
+#;    (define/public (drag x-pos y-pos)
+      (send this change-center x-pos y-pos)
+      (local 
+        ((define new-buddies 
+           (set-diff (send world overlap-square-toys this) buddies)))
+        (for-each 
+         (lambda(elt) (send elt select-by-buddy x-pos y-pos))
+         new-buddies)
+        (for-each 
+         (lambda(elt) (send elt add-buddy this))
+         new-buddies)
+        (send this add-buddies new-buddies)))
+    
+    ;; drag-by-buddy : Integer Integer -> Void
+    ;; EFFECT: drag this by buddy.
+    ;; DETAIL: if overlaped with new square toys in dragging, 
+    ;; add them to buddies and add this to the buddies of them.
+#;    (define/public (drag-by-buddy x-pos y-pos)
+      (send this change-center x-pos y-pos)
+      (local 
+        ((define new-buddies 
+           (set-diff (send world overlap-square-toys this) buddies)))
+        (for-each 
+         (lambda(elt) (send elt add-buddy this))
+         new-buddies)
+        (send this add-buddies new-buddies)))
+    
+    ;; change-center : Integer Integer -> Void
+    ;; GIVEN: the mouse event position.
+    ;; EFFECT: Set this toys's center to the given coordinate.
+    (define/public (change-center x-pos y-pos)
+      (set! x (+ x-pos x-dist))
+      (set! y (+ y-pos y-dist)))
+
+    
+    ;; overlap-with-square-toy? : SquareToy% -> Boolean
+    ;; RETURNS: true iff this overlap with the given square toy.
+    (define/public (overlap-with-square-toy? st)
+      (send st overlap-with-square-toy?-helper x y))
+    
+    ;; overlap-with-square-toy?-helper : Integer Integer -> Boolean
+    ;; GIVEN: the center position of a square toy.
+    (define/public (overlap-with-square-toy?-helper x-coor y-coor)
+      (and (<= (abs (- x-coor x)) length)
+           (<= (abs (- y-coor y)) length)))
+      
+    ;; after-button-up : Integer Integer -> Void
+    ;; EFFECT: set this to what it should be after the button up
+    ;; mouse event at the given location.
+    (define/public (after-button-up)
+      (if selected?
+          (send this unselect)
+          this))
+    
+    ;; unselect : -> Void
+    ;; EFFECT: Unselect this and its buddies.
+    (define/public (unselect)
+      (send this unselect-this)
+      (for-each
+       (lambda(elt) (send elt unselect-by-buddy))
+       buddies))
+    
+    ;; unselect-this : -> Void
+    ;; EFFECT: Unselect this
+    (define/public (unselect-this)
+      (set! selected? false)
+      (set! color "green")
+      (set! x-dist 0)
+      (set! y-dist 0))
+    
+        
+    ;; unselect-by-buddy : -> Void
+    ;; EFFECT: Unselect this by a buddy.
+    (define/public (unselect-by-buddy)
+      (set! color "green")
+      (set! x-dist 0)
+      (set! y-dist 0))
+      
+    
+    ;; Scene -> Scene
+    ;; Returns a Scene like the given one, but with this toy drawn
+    ;; on it.
+    (define/public (add-to-scene scene0)
+      (place-image (square length mode color) x y scene0))
+
+    ;; -> Int
+    ;; RETURNS: the x's or y's coordinate of the toy's center.
+    (define/public (toy-x)
+      x) 
+    
+    (define/public (toy-y)
+      y)
+
+    ;; -> ColorString
+    ;; returns the current color of this toy
+    (define/public (toy-color)
+      color)
+    
+    ;; -> Boolean
+    ;; RETURNS: this toy's selected state.
+    (define/public (toy-selected?)
+      selected?)
+    
+    ;; for-test:toy-equal? : Toy<%> -> Boolean
+    ;; RETURNS: true iff the given toy equal to this
+    (define/public (for-test:toy-equal? t)
+      (and (equal? (object-name t)
+                   (object-name this))
+           (square-toy-equal? t this)))
+    
+    ))
+
+
+;; A ToyFactory% is a 
+;; (new [world world] [target target])
+;; On key event "s", add a square toy to the world at the center of 
+;; target. On key event "c", add a circle toy to the world at the 
+;; center of the target.
+(define ToyFactory%
+  (class* object% ()
+    (init-field world   ; the world
+                target) ; the target 
+                
+    (field [target-x-pos (send target get-x)] ; x coordinate of target
+           [target-y-pos (send target get-y)]); y coordinate of target
+    
+    (super-new)
+    
+    (send target subscribe-center 
+          (lambda(x-pos y-pos)
+            (send this change-center x-pos y-pos)))
+    
+    ;; change-center : Integer Integer -> Void
+    ;; EFFECT: use the received  message to update target's 
+    ;; coordinates.
+    (define/public (change-center x-pos y-pos)
+      (set! target-x-pos x-pos)
+      (set! target-y-pos y-pos))
+    
+    ;; on-tick : -> ToyFactory%
+    #;(define/public (on-tick)
+      this)
+
+    ;; on-mouse : Integer Integer MouseEvent -> Void
+    (define/public (on-mouse x-pos y-pos mev)
+      this)
+    
+    ;; on-key : KeyEvent -> Void
+    ;; Catch "s" and "c" key events here and create a toy.
+    (define/public (on-key kev)
+      (if (key=? kev "s") 
+          (send this add-square-toy)
+          this))
+    
+    ;; add-square-toy : -> Void
+    ;; EFFECT: Create a square toy  at the center of the target.
+    (define/public (add-square-toy)
+      (local
+        ((define the-square-toy
+           (new SquareToy%
+                [x target-x-pos]
+                [y target-y-pos]
+                [world world])))
+        (send world add-toy the-square-toy)))
+    
+    ;; Scene -> Scene
+    (define/public (add-to-scene scene0)
+      scene0)
+
+    ))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TESTS: 
+
+(define (square-toy-equal? st1 st2)
+  (and
+   (= (send st1 toy-x)
+      (send st2 toy-x))
+   (= (send st1 toy-y)
+      (send st2 toy-y))
+   (string=? (send st1 toy-color)
+             (send st2 toy-color))
+   (string=? (send st1 toy-direction)
+             (send st2 toy-direction))))
+
+(define (circle-toy-equal? ct1 ct2)
+  (and
+   (= (send ct1 toy-x)
+      (send ct2 toy-x))
+   (= (send ct1 toy-y)
+      (send ct2 toy-y))
+   (string=? (send ct1 toy-color)
+             (send ct2 toy-color))
+   (= (send ct1 toy-ticks)
+      (send ct2 toy-ticks))))
+
+(define (toy-equal? t1 t2)
+  (send t1 for-test:toy-equal? t2))
+               
+
+(define (target-equal? t1 t2)
+  (and
+   (= (send t1 get-x)
+      (send t2 get-x))
+   (= (send t1 get-y)
+      (send t2 get-y))
+   (equal? (send t1 get-selected?)
+           (send t2 get-selected?))
+   (= (send t1 get-x-dist)
+      (send t2 get-x-dist))
+   (= (send t1 get-y-dist)
+      (send t2 get-y-dist))))
+
+(define (stateful-world-equal? sw1 sw2)
+  (local
+    ((define toys1 (send sw1 get-toys))
+     (define toys2 (send sw2 get-toys)))
+    (and
+     (= (send sw1 get-speed)
+        (send sw2 get-speed))
+     (target-equal?
+      (first(send sw1 get-stateful-objects))
+      (first(send sw2 get-stateful-objects)))   
+     (= (length toys1) (length toys2))
+     (andmap
+      toy-equal?
+      (send sw1 get-toys)
+      (send sw2 get-toys)))))
+
+;; StatefulWorld% (list Integer Integer) [String] -> Check.
+;; RETURNS: a check checks whether the stateful objects and toys in 
+;; the given world have the given lengths str is optional error 
+;; message, helpful in empty string.
+(define (check-lengths sw lst [str ""])
+  (check-equal?
+   (map length (send sw for-test:get-all-objects))
+   lst
+   str))
+
+;; Tests for CircleToy%
+#;
+(begin-for-test
+  (local
+    ((define circle-toy-200-250-green-0
+       (new CircleToy%
+            [x 200]
+            [y 250]
+            [ticks 0]))
+     (define circle-toy-200-250-red-5
+       (new CircleToy%
+            [x 200]
+            [y 250]
+            [c "red"]
+            [ticks 5])))
+    (send circle-toy-200-250-green-0 on-tick)
+    (check circle-toy-equal?
+           circle-toy-200-250-green-0
+           circle-toy-200-250-red-5)))
+       
+;; Tests for SquareToy%
+#;
+(begin-for-test
+  (local
+    
+    ;; tests for on-tick
+    ((define square-toy-200-250-right-3
+       (new SquareToy% 
+            [x 200]
+            [y 250]
+            [s 3]))
+     (define square-toy-203-250-right-3
+       (new SquareToy%
+            [x 203]
+            [y 250]
+            [s 3]))
+     (define square-toy-at-right-border
+       (new SquareToy% 
+            [x 380]
+            [y 250]
+            [s 3]))
+     (define square-toy-at-left-border
+       (new SquareToy% 
+            [x 20]
+            [y 250]
+            [d "left"]
+            [s 3])))
+    (send square-toy-200-250-right-3 on-tick)
+    (check square-toy-equal?
+           square-toy-200-250-right-3
+           square-toy-203-250-right-3)
+    ; reaches right border
+    (send square-toy-at-right-border on-tick)
+    (check square-toy-equal?
+           square-toy-at-right-border
+           (new SquareToy%
+                [x 380]
+                [y 250]
+                [d "left"]
+                [s 3]))
+    ; reaches left border
+    (send square-toy-at-left-border on-tick)
+    (check square-toy-equal?
+           square-toy-at-left-border
+           (new SquareToy%
+                [x 20]
+                [y 250]
+                [d "right"]
+                [s 3]))
+    ))
+
+;; Tests for Target%
+#;
+(begin-for-test
+  ; tests for on-mouse
+  (local
+    ((define the-target
+       (new Target%
+                   [x 200]
+                   [y 250])))
+    (send the-target
+          on-mouse
+          195
+          245
+          "button-down")
+      (check target-equal?
+             the-target
+             (new Target%
+                  [x 200]
+                  [y 250]
+                  [s? true]
+                  [x-dist 5]
+                  [y-dist 5]))
+    (send the-target 
+          on-mouse
+          250
+          300
+          "drag")
+    (check target-equal?
+           the-target
+           (new Target%
+                [x 255]
+                [y 305]
+                [s? true]
+                [x-dist 5]
+                [y-dist 5]))
+    (send the-target
+          on-mouse 
+          250
+          300
+          "button-up")
+    (check target-equal?
+           the-target
+           (new Target%
+                [x 255]
+                [y 305]
+                [s? false]
+                [x-dist 5]
+                [y-dist 5]))
+    ))
+
+;; Tests for StatefulWorld%
+#;
+(begin-for-test
+  (local 
+    ((define the-stateful-world (new World% [s 5]))
+     (define the-stateful-world2 (new World% [s 5]))
+     (define square-toy1 (new SquareToy% [x 200] [y 250] [s 5]))
+     (define circle-toy1 (new CircleToy% [x 200] [y 250])))
+    (check-lengths
+     the-stateful-world 
+     (list 2 0)
+     "A new stateful world should start with 2 stateful objects")
+    (send the-stateful-world on-tick)
+    (check 
+     stateful-world-equal?
+     the-stateful-world
+     the-stateful-world2)
+    ;; add a square toy
+    (send the-stateful-world on-key "s")
+    (check
+     stateful-world-equal?
+     the-stateful-world
+     (new World% [s 5] [toys (list square-toy1)]))
+    ;; add a circle toy
+    (send the-stateful-world on-key "c")
+    (check
+     stateful-world-equal?
+     the-stateful-world
+     (new World% [s 5] [toys (list circle-toy1 square-toy1)]))
+    ;; toys on-tick
+    (send the-stateful-world on-tick)
+    (send square-toy1 on-tick)
+    (send circle-toy1 on-tick)
+    (check
+     stateful-world-equal?
+     the-stateful-world
+     (new World% [s 5] [toys (list circle-toy1 square-toy1)]))
+     
+    ))

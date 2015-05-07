@@ -1,0 +1,1 @@
+("6.0.1" ("c7eda2687a8842525f46cbe74dd0db99c3413409" . "e6a9cac92dffce30193471d4d2cde4645d87617a") #"D:\\GitHub\\5010\\set10\\extras.rkt" (collects #"2htdp" #"universe.rkt") (collects #"2htdp" #"image.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt") (collects #"rackunit" #"main.rkt"))

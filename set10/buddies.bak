@@ -1,0 +1,935 @@
+;; set 10 Q2
+;; toys.rkt
+
+#lang racket
+
+(require rackunit)
+(require "extras.rkt")
+(require 2htdp/universe)   
+(require 2htdp/image)      
+
+(provide World%
+         SquareToy%
+         CircleToy%
+         make-world
+         run
+         make-square-toy
+         make-circle-toy
+         StatefulWorld<%>
+         StatefulToy<%>)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; DATA DEFINITIONS
+(define CANVAS-WIDTH 400)
+(define CANVAS-HEIGHT 500)
+(define HALF-CANVAS-WIDTH (/ CANVAS-WIDTH 2))
+(define HALF-CANVAS-HEIGHT (/ CANVAS-HEIGHT 2))
+(define EMPTY-CANVAS 
+  (empty-scene CANVAS-WIDTH CANVAS-HEIGHT))
+
+;; A Direction is on of
+;; -- "right"
+;; -- "left"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; World%     -- a class that satisfies the World<%> interface (shown below).
+;; SquareToy% -- a class that satisfies the Toy<%> interface
+;; CircleToy% -- a class that satisfies the Toy<%> interface
+
+;; make-world : PosInt -> World%
+;; RETURNS: a world with a target, but no toys, and in which any
+;; toys created in the future will travel at the given speed (in pixels/tick).
+(define (make-world speed)
+  (new World% [s speed]))
+
+;; run : PosNum PosInt -> World%
+;; GIVEN: a frame rate (in seconds/tick) and a square-speed (in pixels/tick),
+;; creates and runs a world.  Returns the final state of the world.
+(define (run frame-rate speed)
+  (big-bang (make-world speed)
+            (on-tick 
+             (lambda(w) (send w on-tick) w)
+             frame-rate)
+            (on-draw
+             (lambda(w) (send w on-draw)))
+            (on-key
+             (lambda(w kev) (send w on-key kev) w))
+            (on-mouse
+             (lambda(w x y mev) (send w on-mouse x y mev) w))))
+
+;; make-square-toy : PosInt PosInt PosInt -> SquareToy%
+;; GIVEN: an x and a y position, and a speed
+;; RETURNS: an object representing a square toy at the given position,
+;; travelling right at the given speed.
+(define (make-square-toy x y speed)
+  (new SquareToy% [x x] [y y] [s speed]))
+
+
+;; make-circle-toy : PosInt PosInt -> CircleToy%
+;; GIVEN: an x and a y position
+;; RETURNS: an object represeenting a circle toy at the given position.
+(define (make-circle-toy x y)
+  (new CircleToy% [x x] [y y]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Interfaces:
+
+;; Interfaces for set 10
+(define StatefulWorld<%>
+  (interface ()
+    
+    ;; -> Void
+    ;; EFFECT: updates this World StatefulWorld<%> to the state that it should be in after
+    ;; a tick.
+    on-tick                             
+    
+    ;; Integer Integer MouseEvent -> Void
+    ;; EFFECT: updates this World<%> StatefulWorld<%> to the state that it should be in
+    ;; after the given MouseEvent
+    on-mouse
+    
+    ;; KeyEvent -> Void
+    ;; EFFECT: updates this World<%> StatefulWorld<%> to the state that it should be in
+    ;; after the given KeyEvent
+    on-key
+    
+    ;; -> Scene
+    ;; Returns a Scene depicting this world StatefulWorld<%>
+    ;; on it.
+    on-draw 
+    
+    ;; -> Integer
+    ;; RETURN: the x and y coordinates of the target
+    target-x
+    target-y
+    
+    ;; -> Boolean
+    ;; Is the target selected?
+    target-selected?
+    
+    ;; -> ListOfStatefulToy<%>
+    get-toys
+    
+    ))
+
+;; 
+(define StatefulToy<%> 
+  (interface ()
+    
+    ;; -> Void
+    ;; EFFECT: updates this toy StatefulToy<%> to the state it should be in after a
+    ;; tick. 
+    on-tick                             
+    
+    ;; Scene -> Scene
+    ;; Returns a Scene like the given one, but with this toy StatefulToy<%> drawn
+    ;; on it.
+    add-to-scene
+    
+    ;; -> Int
+    toy-x
+    toy-y
+    
+    ;; -> ColorString
+    ;; returns the current color of this toy StatefulToy<%>
+    toy-color
+    
+    ))
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; CLASSES
+
+;; A World% is a 
+;; (new World% [s PosNum] [target Target%] [toys ListOf<Toy%>])
+;; RETPRESENTS: A world state.
+(define World%
+  (class* object% (StatefulWorld<%>)
+    (init-field s                     ; toys' travel speed
+                #;[target (new Target%  ; Target circle
+                             [x HALF-CANVAS-WIDTH] 
+                             [y HALF-CANVAS-HEIGHT])]
+                [stateful-objects  ; Target and Factory
+                 (local
+                   ((define the-target
+                      (new Target%
+                            [x HALF-CANVAS-WIDTH] 
+                            [y HALF-CANVAS-HEIGHT]))
+                    (define the-toy-factory
+                      (new ToyFactory%
+                           [world this]
+                           [target the-target]
+                           [speed s])))
+                     (list the-target the-toy-factory))]
+                [toys empty])  ; Toys
+    
+    
+    
+    (super-new)
+                
+    ;; -> World%
+    ;; Returns the World% that should follow this one after a tick
+    ;; DETAILS: only toys will be responsive to tick.
+    (define/public (on-tick)
+#;      (set! objects 
+            (map
+             (lambda(obj) (send obj on-tick))
+             stateful-objects))
+      (for-each
+       (lambda(t) (send t on-tick))
+       toys)
+      #;(new World% 
+           [s s]
+           [target target]
+           [toys (map
+                  (lambda(elt) (send elt on-tick))
+                  toys)]))
+
+    ;; Integer Integer MouseEvent -> World<%>
+    ;; Returns the World<%> that should follow this one after the
+    ;; given MouseEvent
+    ;; DETAIL: toys are not responsive to mouse event.
+    (define/public (on-mouse x y mev)
+      (for-each
+       (lambda(obj) (send obj on-mouse x y mev))
+       stateful-objects)
+#;      (for-each
+       (lambda(t) (send t on-mouse x y mev))
+       toys) 
+      
+      #;(new World% 
+           [s s]
+           [target (send target on-mouse x y mev)]
+           [toys toys]))
+
+    ;; KeyEvent -> World<%>
+    ;; Returns the World<%> that should follow this one after the
+    ;; given KeyEvent.
+    ;; STRATEGY: Cases on kev : KeyEvent
+    ;; DETAILS: toys are not responsive to key event.
+    (define/public (on-key kev)
+      (for-each
+       (lambda(obj) (send obj on-key kev))
+       stateful-objects)
+#;      (for-each
+       (lambda(t) (send t on-key kev))
+       toys)
+      
+      #;(cond
+       [(key=? kev "s") 
+        (new World% 
+             [s s]
+             [target target]
+             [toys(cons (new SquareToy% 
+                             [x (send this target-x)]
+                             [y (send this target-y)]
+                             [s s])
+                        toys)])]
+       [(key=? kev "c") 
+        (new World% 
+             [s s]
+             [target target]
+             [toys (cons (new CircleToy%
+                              [x (send this target-x)]
+                              [y (send this target-y)])
+                         toys)])]
+       [else this]))
+
+    ;; -> Scene
+    ;; Returns a Scene depicting this world
+    ;; on it.
+    (define/public (on-draw)
+      (local ((define scene1 
+                (foldr 
+                 (lambda(obj old-scene) 
+                   (send obj add-to-scene old-scene))
+                 EMPTY-CANVAS
+                 stateful-objects)))
+        (foldr
+         (lambda(t old-scene)
+           (send t add-to-scene old-scene))
+         scene1
+         toys))
+      
+      #;(local
+        ((define scene-with-target (send target add-to-scene EMPTY-CANVAS)))
+        (foldr
+         ; Toy% Scene -> Scene
+         ; RETURN: A scene like the given one, but with the given toy
+         ; depicted on it.
+         (lambda(elt s) (send elt add-to-scene s))
+         scene-with-target
+         toys)))
+    
+    ;; -> Integer
+    ;; RETURN: the x or y coordinates of the target
+    (define/public (target-x)
+      (send (first stateful-objects) get-x))
+    
+    (define/public (target-y)
+      (send (first stateful-objects) get-y))
+
+    ;; -> Boolean
+    ;; Is the target selected?
+    (define/public (target-selected?)
+      (send (first stateful-objects) get-selected?))
+
+    ;; -> ListOfToy<%>
+    ;; RETURNS: the list of toys of this.
+    (define/public (get-toys)
+      toys)
+    
+    ;; -> PosInt
+    ;; RETURNS: the travel speed of toys in this stateful world.
+    (define/public (get-speed)
+      s)
+    
+    ;; -> (list ToyFactory% Target%)
+    ;; RETURNS: the list of ToyFactory% and Target% in this world.
+    (define/public (get-stateful-objects)
+      stateful-objects)
+    
+    ;; add-toy : Toy<%s> -> Void
+    ;; EFFECT: Add the given toy to toys.
+    (define/public (add-toy new-toy)
+      (set! toys (cons new-toy toys)))
+    
+    ;; for-test:get-all-objects 
+    ;; : -> (list (list StatefulObject%) (list Toys<%>)))
+    ;; RETURNS: A list of the StatefulObjects% and Toys<%> in this
+    ;; world.
+    (define/public (for-test:get-all-objects)
+      (list stateful-objects toys))
+    
+    ))
+
+
+
+;; A Target% is a 
+;; (new Target% [x NonNegInt] [y NonNegInt] [s? Boolean] 
+;;      [x-dist Integer] [y-dist Integer])
+;; REPRESENTS: A target circle
+(define Target%
+  (class* object% ()
+    (init-field x  ; x position
+                y  ; y position
+                [s? false]) ; selected state
+    (init-field [x-dist 0]  ; the x-dist from mouse's location to this.
+                [y-dist 0]) ; the y-dist from mouse's location to this.
+    
+    (field [r 10]        ; radius
+           [m "outline"] ; mode
+           [c "black"])  ; color string
+    
+    ;; ListOf<(Integer Integer -> Void)>
+    (field [delegates-for-center empty])  
+    (field [IMG (circle r m c)])
+    
+    (super-new)
+    
+    ;; subscribe-center : (Integer Integer -> Void) -> Void
+    ;; EFFECT: Add the given delegate to delegates-for-center.
+    (define/public (subscribe-center delegate)
+      (set! delegates-for-center 
+            (cons delegate delegates-for-center)))
+    
+    ;; publish-center : Integer Integer -> Void
+    ;; EFFECT: publish the center's coordinates to all delegates.
+    (define/public (publish-center x-pos y-pos)
+      (for-each
+       (lambda(d)
+         (d x-pos y-pos))
+       delegates-for-center))
+    
+    ;; Integer Integer MouseEvent -> Target%
+    ;; Returns the Target% that should follow this one after the
+    ;; given MouseEvent
+    ;; STRATEGY: Cases on mev : MouseEvent
+    (define/public (on-mouse x-pos y-pos mev)
+      (cond
+        [(mouse=? mev "button-down")  
+         (target-after-button-down x-pos y-pos)]
+        [(mouse=? mev "button-up")
+         (target-after-button-up x-pos y-pos)]
+        [(mouse=? mev "drag")
+         (target-after-drag x-pos y-pos)]
+        [else this]))
+    
+    ;; target-after-button-down: Integer Integer -> Target%
+    ;; GIVEN: the location of a mouse event.
+    ;; RETURNS: the target that should follow this one after a 
+    ;; button-down at the given location.
+    (define/public (target-after-button-down x-pos y-pos)
+      (if (send this in-target? x-pos y-pos)
+          (begin (set! s? true)
+                 (set! x-dist (- x x-pos))
+                 (set! y-dist (- y y-pos)))
+          #;(new Target% [x x] [y y] [s? true] [x-dist (- x x-pos)]
+               [y-dist (- y y-pos)])
+          this))
+    
+    ;; target-after-button-up: Integer Integer -> Target%
+    ;; GIVEN: the location of a mouse event.
+    ;; RETURNS: the target that should follow this one after a 
+    ;; button-down at the given location.
+    (define/public (target-after-button-up x-pos y-pos)
+      (set! s? false)
+      #;(new Target% [x x] [y y] [s? false]))
+    
+    ;; target-after-drag: Integer Integer -> Target%
+    ;; GIVEN: the location of a mouse event.
+    ;; RETURNS: the target that should follow this one after a 
+    ;; button-down at the given location.
+    (define/public (target-after-drag x-pos y-pos)
+      (if s?
+          (begin
+               (set! x (+ x-pos x-dist))
+               (set! y (+ y-pos y-dist))
+               (publish-center x y))
+          #;(new Target%
+               [x (+ x-pos x-dist)]
+               [y (+ y-pos y-dist)]
+               [s? true]
+               [x-dist x-dist]
+               [y-dist y-dist])
+          this))
+    
+    
+    
+    ;; in-target? : Integer Integer -> Boolean
+    ;; GIVEN: the coordinates of a position.
+    ;; RETURNS: true iff the position is in this.
+    (define/public (in-target? x-pos y-pos)
+      (<= (+ (sqr (- x x-pos))
+             (sqr (- y y-pos)))
+          (sqr r)))
+
+    ;; on-key : KeyEvent -> Target%
+    ;; Returns the Target% that should follow the one after the 
+    ;; given KeyEvent
+    (define/public (on-key kev)
+      this)
+    
+    
+    ;; add-to-scene : Scene -> Scene
+    ;; RETURNS: A Scene like the given one, but with this target 
+    ;; depicted on it.
+    (define/public (add-to-scene scene0)
+      (place-image IMG x y scene0))
+    
+    
+    
+    ;; -> Integer
+    ;; RETURNS: the x or y coordinates.
+    (define/public (get-x)
+      x)
+    (define/public (get-y)
+      y)
+    
+    ;; -> Boolean
+    ;; RETURNS: True iff this is selected.
+    (define/public (get-selected?)
+      s?)
+    
+    ;; target-x-dist -> Integer
+    ;; target-y-dist -> Integer
+    ;; RETURNS: the distant from mouse location to this target center.
+    (define/public (get-x-dist)
+      x-dist)
+    
+    (define/public (get-y-dist)
+      y-dist)
+    
+    ))
+
+;; A ToyFactory% is a 
+;; (new [world world] [target target])
+;; On key event "s", add a square toy to the world at the center of 
+;; target. On key event "c", add a circle toy to the world at the 
+;; center of the target.
+(define ToyFactory%
+  (class* object% ()
+    (init-field world   ; the world
+                target  ; the target 
+                speed)  ; square toys's travel speed
+    (field [target-x-pos (send target get-x)] ; x coordinate of target
+           [target-y-pos (send target get-y)]); y coordinate of target
+    
+    (super-new)
+    
+    (send target subscribe-center 
+          (lambda(x-pos y-pos)
+            (send this change-center x-pos y-pos)))
+    
+    ;; change-center : Integer Integer -> Void
+    ;; EFFECT: use the received  message to update target's 
+    ;; coordinates.
+    (define/public (change-center x-pos y-pos)
+      (set! target-x-pos x-pos)
+      (set! target-y-pos y-pos))
+    
+    ;; on-tick : -> ToyFactory%
+    #;(define/public (on-tick)
+      this)
+
+    ;; on-mouse : Integer Integer MouseEvent -> Void
+    (define/public (on-mouse x-pos y-pos mev)
+      this)
+    
+    ;; on-key : KeyEvent -> Void
+    ;; Catch "s" and "c" key events here and create a toy.
+    (define/public (on-key kev)
+      (cond
+        [(key=? kev "s") (send this add-square-toy)]
+        [(key=? kev "c") (send this add-circle-toy)]))
+    
+    ;; Scene -> Scene
+    (define/public (add-to-scene scene0)
+      scene0)
+    
+    ;; add-square-toy : -> Void
+    ;; add-circle-toy : -> Void
+    ;; EFFECT: Create a square toy or a circle toy at the center of 
+    ;; the target.
+    (define/public (add-square-toy)
+      (local
+        ((define the-square-toy
+           (new SquareToy%
+                [x target-x-pos]
+                [y target-y-pos]
+                [s speed])))
+        (send world add-toy the-square-toy)))
+    
+    (define/public (add-circle-toy)
+      (local
+        ((define the-circle-toy
+           (new CircleToy%
+                [x target-x-pos]
+                [y target-y-pos])))
+        (send world add-toy the-circle-toy)))
+    
+    ))
+
+;; A CircleToy% is a
+;; (new CircleToy% [x NonNegInt] [y NonNegInt] 
+;;                 [color String] [ticks PosInt])
+;; REPRESENTS: A circle toy
+(define CircleToy%
+  (class* object% (StatefulToy<%>)
+    (init-field x      ; Center's x position
+                y)      ; Center's y position
+    (init-field [c "green"]) ; Color
+    (init-field [ticks 5])   ; Ticks until color change
+    
+    (field [r 5]        ; radius
+           [m "solid"]) ; mode
+    
+    (super-new)
+    
+    ;; -> Void
+    ;; EFFECT: set this Toy to the state it should be after a tick
+    (define/public (on-tick)
+      (if (zero? ticks)
+          (begin
+            (set! c (send this color-toggle c))
+            (set! ticks 5))
+          #;(new CircleToy% 
+               [x x]
+               [y y] 
+               [c (send this color-toggle c)]
+               [ticks 5])
+          (set! ticks (- ticks 1))
+          #;(new CircleToy% 
+               [x x]
+               [y y] 
+               [c c]
+               [ticks (- ticks 1)])))
+    
+    ;; color-goggle : String -> String
+    ;; GIVEN: a color string.
+    ;; RETURNS: the toggled color string("green" -> "red", 
+    ;; "red" -> "green")
+    (define/public (color-toggle c0)
+      (cond
+        [(string=? c0 "green") "red"]
+        [(string=? c0 "red") "green"]))
+      
+
+    ;; Scene -> Scene
+    ;; Returns a Scene like the given one, but with this toy drawn
+    ;; on it.
+    (define/public (add-to-scene scene0)
+      (place-image (circle r m c) x y scene0))
+    
+
+    ;; -> Int
+    ;; RETURNS: the x's or y's coordinate of toy's center.
+    (define/public (toy-x)
+      x)
+      
+    (define/public (toy-y)
+      y)
+
+    ;; -> ColorString
+    ;; returns the current color of this toy
+    (define/public (toy-color)
+      c)
+    
+    ;; -> Number
+    ;; RETURNS: the toys's ticks
+    (define/public (toy-ticks)
+      ticks)
+    
+    ;; for-test:toy-equal? : Toy<%> -> Boolean
+    ;; RETURNS: true iff the given toy equal to this
+    (define/public (for-test:toy-equal? t)
+      (and (equal? (object-name t)
+                   (object-name this))
+           (circle-toy-equal? t this)))
+    
+    
+    ))
+
+
+;; A SquareToy% is a 
+;; (new SquareToy% [x NonNegInt] [y NonNegInt] 
+;;      [d String][s PosInt)
+;; RETPRESENTS: A square toy.
+(define SquareToy%
+  (class* object% (StatefulToy<%>)
+    (init-field x           ; Center's x coordinate
+                y           ; Center's y coordinate
+                s           ; speed
+                [d "right"]); Direction "right" or "left"
+                
+    
+    (field [m "solid"] ; mode
+           [c "blue"]  ; Color string
+           [l 40])     ; Side length
+
+    (field [LEFT-BORDER (/ l 2)]
+           [RIGHT-BORDER (- CANVAS-WIDTH (/ l 2))])
+    
+    (super-new)
+    
+    
+    ;; -> Toy%
+    ;; returns the Toy that should follow this one after a tick
+    (define/public (on-tick)
+      (local ((define next-x-coor (send this next-x)))
+        (cond
+          [(send this out-of-left-border (send this next-x))
+           (begin
+             (set! x LEFT-BORDER)
+             (set! d "right"))
+           #;(new SquareToy% [x LEFT-BORDER] [y y] [d "right"] [s s])]
+          [(send this out-of-right-border (send this next-x))
+           (begin
+             (set! x RIGHT-BORDER)
+             (set! d "left"))
+           #;(new SquareToy% [x RIGHT-BORDER] [y y] [d "left"] [s s])]
+          [else 
+           (set! x next-x-coor)
+           #;(new SquareToy% [x next-x-coor] [y y] [d d] [s s])])))
+     
+    
+    
+    ;; next-x : -> Integer
+    ;; RETURNS: this toy's x coordinate in next tick if it won't reach
+    ;; the edge of canvas.
+    ;; STRATEGY: Cases on d : Direction
+    (define/public (next-x)
+      (cond
+        [(string=? d "right") (+ x s)]
+        [(string=? d "left") (- x s)]))
+    
+    ;; out-of-left-border : Integer -> Boolean
+    ;; out-of-right-border : Integer -> Boolean
+    ;; GIVEN: the x coordinate of a position.
+    ;; RETURNS: true iff the position will out of canvas's left/right
+    ;; edge.
+    (define/public (out-of-left-border x-coor)
+      (< x-coor LEFT-BORDER))
+    
+    (define/public (out-of-right-border x-coor)
+      (> x-coor RIGHT-BORDER))
+         
+
+
+    
+    ;; Scene -> Scene
+    ;; Returns a Scene like the given one, but with this toy drawn
+    ;; on it.
+    (define/public (add-to-scene scene0)
+      (place-image (square l m c) x y scene0))
+
+    ;; -> Int
+    ;; RETURNS: the x's or y's coordinate of the toy's center.
+    (define/public (toy-x)
+      x) 
+    
+    (define/public (toy-y)
+      y)
+
+    ;; -> ColorString
+    ;; returns the current color of this toy
+    (define/public (toy-color)
+      c)
+    
+    ;; -> Direction
+    ;; RETURNS: this toy's direction
+    (define/public (toy-direction)
+      d)
+    
+    ;; for-test:toy-equal? : Toy<%> -> Boolean
+    ;; RETURNS: true iff the given toy equal to this
+    (define/public (for-test:toy-equal? t)
+      (and (equal? (object-name t)
+                   (object-name this))
+           (square-toy-equal? t this)))
+    
+    ))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TESTS: 
+
+(define (square-toy-equal? st1 st2)
+  (and
+   (= (send st1 toy-x)
+      (send st2 toy-x))
+   (= (send st1 toy-y)
+      (send st2 toy-y))
+   (string=? (send st1 toy-color)
+             (send st2 toy-color))
+   (string=? (send st1 toy-direction)
+             (send st2 toy-direction))))
+
+(define (circle-toy-equal? ct1 ct2)
+  (and
+   (= (send ct1 toy-x)
+      (send ct2 toy-x))
+   (= (send ct1 toy-y)
+      (send ct2 toy-y))
+   (string=? (send ct1 toy-color)
+             (send ct2 toy-color))
+   (= (send ct1 toy-ticks)
+      (send ct2 toy-ticks))))
+
+(define (toy-equal? t1 t2)
+  (send t1 for-test:toy-equal? t2))
+               
+
+(define (target-equal? t1 t2)
+  (and
+   (= (send t1 get-x)
+      (send t2 get-x))
+   (= (send t1 get-y)
+      (send t2 get-y))
+   (equal? (send t1 get-selected?)
+           (send t2 get-selected?))
+   (= (send t1 get-x-dist)
+      (send t2 get-x-dist))
+   (= (send t1 get-y-dist)
+      (send t2 get-y-dist))))
+
+(define (stateful-world-equal? sw1 sw2)
+  (local
+    ((define toys1 (send sw1 get-toys))
+     (define toys2 (send sw2 get-toys)))
+    (and
+     (= (send sw1 get-speed)
+        (send sw2 get-speed))
+     (target-equal?
+      (first(send sw1 get-stateful-objects))
+      (first(send sw2 get-stateful-objects)))   
+     (= (length toys1) (length toys2))
+     (andmap
+      toy-equal?
+      (send sw1 get-toys)
+      (send sw2 get-toys)))))
+
+;; StatefulWorld% (list Integer Integer) [String] -> Check.
+;; RETURNS: a check checks whether the stateful objects and toys in 
+;; the given world have the given lengths str is optional error 
+;; message, helpful in empty string.
+(define (check-lengths sw lst [str ""])
+  (check-equal?
+   (map length (send sw for-test:get-all-objects))
+   lst
+   str))
+
+;; Tests for CircleToy%
+(begin-for-test
+  (local
+    ((define circle-toy-200-250-green-0
+       (new CircleToy%
+            [x 200]
+            [y 250]
+            [ticks 0]))
+     (define circle-toy-200-250-red-5
+       (new CircleToy%
+            [x 200]
+            [y 250]
+            [c "red"]
+            [ticks 5])))
+    (send circle-toy-200-250-green-0 on-tick)
+    (check circle-toy-equal?
+           circle-toy-200-250-green-0
+           circle-toy-200-250-red-5)))
+       
+;; Tests for SquareToy%
+;#;
+(begin-for-test
+  (local
+    
+    ;; tests for on-tick
+    ((define square-toy-200-250-right-3
+       (new SquareToy% 
+            [x 200]
+            [y 250]
+            [s 3]))
+     (define square-toy-203-250-right-3
+       (new SquareToy%
+            [x 203]
+            [y 250]
+            [s 3]))
+     (define square-toy-at-right-border
+       (new SquareToy% 
+            [x 380]
+            [y 250]
+            [s 3]))
+     (define square-toy-at-left-border
+       (new SquareToy% 
+            [x 20]
+            [y 250]
+            [d "left"]
+            [s 3])))
+    (send square-toy-200-250-right-3 on-tick)
+    (check square-toy-equal?
+           square-toy-200-250-right-3
+           square-toy-203-250-right-3)
+    ; reaches right border
+    (send square-toy-at-right-border on-tick)
+    (check square-toy-equal?
+           square-toy-at-right-border
+           (new SquareToy%
+                [x 380]
+                [y 250]
+                [d "left"]
+                [s 3]))
+    ; reaches left border
+    (send square-toy-at-left-border on-tick)
+    (check square-toy-equal?
+           square-toy-at-left-border
+           (new SquareToy%
+                [x 20]
+                [y 250]
+                [d "right"]
+                [s 3]))
+    ))
+
+;; Tests for Target%
+;#;
+(begin-for-test
+  ; tests for on-mouse
+  (local
+    ((define the-target
+       (new Target%
+                   [x 200]
+                   [y 250])))
+    (send the-target
+          on-mouse
+          195
+          245
+          "button-down")
+      (check target-equal?
+             the-target
+             (new Target%
+                  [x 200]
+                  [y 250]
+                  [s? true]
+                  [x-dist 5]
+                  [y-dist 5]))
+    (send the-target 
+          on-mouse
+          250
+          300
+          "drag")
+    (check target-equal?
+           the-target
+           (new Target%
+                [x 255]
+                [y 305]
+                [s? true]
+                [x-dist 5]
+                [y-dist 5]))
+    (send the-target
+          on-mouse 
+          250
+          300
+          "button-up")
+    (check target-equal?
+           the-target
+           (new Target%
+                [x 255]
+                [y 305]
+                [s? false]
+                [x-dist 5]
+                [y-dist 5]))
+    ))
+
+;; Tests for StatefulWorld%
+(begin-for-test
+  (local 
+    ((define the-stateful-world (new World% [s 5]))
+     (define the-stateful-world2 (new World% [s 5]))
+     (define square-toy1 (new SquareToy% [x 200] [y 250] [s 5]))
+     (define circle-toy1 (new CircleToy% [x 200] [y 250])))
+    (check-lengths
+     the-stateful-world 
+     (list 2 0)
+     "A new stateful world should start with 2 stateful objects")
+    (send the-stateful-world on-tick)
+    (check 
+     stateful-world-equal?
+     the-stateful-world
+     the-stateful-world2)
+    ;; add a square toy
+    (send the-stateful-world on-key "s")
+    (check
+     stateful-world-equal?
+     the-stateful-world
+     (new World% [s 5] [toys (list square-toy1)]))
+    ;; add a circle toy
+    (send the-stateful-world on-key "c")
+    (check
+     stateful-world-equal?
+     the-stateful-world
+     (new World% [s 5] [toys (list circle-toy1 square-toy1)]))
+    ;; toys on-tick
+    (send the-stateful-world on-tick)
+    (send square-toy1 on-tick)
+    (send circle-toy1 on-tick)
+    (check
+     stateful-world-equal?
+     the-stateful-world
+     (new World% [s 5] [toys (list circle-toy1 square-toy1)]))
+    
+     
+    ))
+     
+       
+    
+  
+  
+
+
